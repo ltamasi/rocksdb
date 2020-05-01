@@ -505,6 +505,22 @@ class VersionBuilder::Rep {
       return s;
     }
 
+    // Add new blob files
+    for (const auto& blob_file_addition : edit->GetBlobFileAdditions()) {
+      s = ApplyBlobFileAddition(blob_file_addition);
+      if (!s.ok()) {
+        return s;
+      }
+    }
+
+    // Increase the amount of garbage for blob files affected by GC
+    for (const auto& blob_file_garbage : edit->GetBlobFileGarbages()) {
+      s = ApplyBlobFileGarbage(blob_file_garbage);
+      if (!s.ok()) {
+        return s;
+      }
+    }
+
     // Delete files
     const auto& del = edit->GetDeletedFiles();
     for (const auto& del_file : del) {
@@ -562,22 +578,6 @@ class VersionBuilder::Rep {
         // TODO: check that blob file exists in version
         blob_file_meta_deltas_[meta.oldest_blob_file_number].LinkSst(
             meta.fd.GetNumber());
-      }
-    }
-
-    // Add new blob files
-    for (const auto& blob_file_addition : edit->GetBlobFileAdditions()) {
-      s = ApplyBlobFileAddition(blob_file_addition);
-      if (!s.ok()) {
-        return s;
-      }
-    }
-
-    // Increase the amount of garbage for blob files affected by GC
-    for (const auto& blob_file_garbage : edit->GetBlobFileGarbages()) {
-      s = ApplyBlobFileGarbage(blob_file_garbage);
-      if (!s.ok()) {
-        return s;
       }
     }
 
