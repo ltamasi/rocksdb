@@ -528,13 +528,19 @@ class VersionBuilder::Rep {
           has_invalid_levels_ = true;
         }
       }
+
+      // TODO: if there is a blob file associated with the table file
+      // (which can be determined from FileMetaData), check if the blob file
+      // exists in the version (it should), and if so, unlink the SST from it
     }
 
     // Add new files
     for (const auto& new_file : edit->GetNewFiles()) {
       const int level = new_file.first;
+      const auto& meta = new_file.second;
+
       if (level < num_levels_) {
-        FileMetaData* f = new FileMetaData(new_file.second);
+        FileMetaData* f = new FileMetaData(meta);
         f->refs = 1;
 
         assert(levels_[level].added_files.find(f->fd.GetNumber()) ==
@@ -542,7 +548,7 @@ class VersionBuilder::Rep {
         levels_[level].deleted_files.erase(f->fd.GetNumber());
         levels_[level].added_files[f->fd.GetNumber()] = f;
       } else {
-        uint64_t number = new_file.second.fd.GetNumber();
+        uint64_t number = meta.fd.GetNumber();
         auto& lvls = invalid_levels_[level];
         if (lvls.count(number) == 0) {
           lvls.insert(number);
@@ -550,6 +556,12 @@ class VersionBuilder::Rep {
           // Creating an already existing file on invalid level.
           has_invalid_levels_ = true;
         }
+      }
+
+      if (meta.oldest_blob_file_number != kInvalidBlobFileNumber) {
+        // TODO: check that blob file exists in version
+        blob_file_meta_deltas_[meta.oldest_blob_file_number].LinkSst(
+            meta.fd.GetNumber());
       }
     }
 
