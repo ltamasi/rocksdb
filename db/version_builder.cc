@@ -545,9 +545,6 @@ class VersionBuilder::Rep {
         }
       }
 
-      // TODO: if there is a blob file associated with the table file
-      // (which can be determined from FileMetaData), check if the blob file
-      // exists in the version (it should), and if so, unlink the SST from it
       {
         uint64_t blob_file_number = kInvalidBlobFileNumber;
 
@@ -575,7 +572,8 @@ class VersionBuilder::Rep {
           }
         }
 
-        if (blob_file_number != kInvalidBlobFileNumber) {
+        if (blob_file_number != kInvalidBlobFileNumber &&
+            IsBlobFileInVersion(blob_file_number)) {
           blob_file_meta_deltas_[blob_file_number].UnlinkSst(number);
         }
       }
@@ -595,8 +593,8 @@ class VersionBuilder::Rep {
         levels_[level].deleted_files.erase(f->fd.GetNumber());
         levels_[level].added_files[f->fd.GetNumber()] = f;
 
-        if (meta.oldest_blob_file_number != kInvalidBlobFileNumber) {
-          // TODO: check that blob file exists in version
+        if (meta.oldest_blob_file_number != kInvalidBlobFileNumber &&
+            IsBlobFileInVersion(meta.oldest_blob_file_number)) {
           blob_file_meta_deltas_[meta.oldest_blob_file_number].LinkSst(
               meta.fd.GetNumber());
         }
