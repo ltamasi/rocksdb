@@ -527,6 +527,35 @@ class VersionBuilder::Rep {
       const auto level = del_file.first;
       const auto number = del_file.second;
       if (level < num_levels_) {
+        uint64_t blob_file_number = kInvalidBlobFileNumber;
+
+        const auto& base_files = base_vstorage_->LevelFiles(level);
+        for (const FileMetaData* meta : base_files) {
+          assert(meta);
+
+          if (meta->fd.GetNumber() == number) {
+            blob_file_number = meta->oldest_blob_file_number;
+            break;
+          }
+        }
+
+        if (blob_file_number == kInvalidBlobFileNumber) {
+          const auto& added_files = levels_[level].added_files;
+
+          auto it = added_files.find(number);
+          if (it != added_files.end()) {
+            const FileMetaData* const meta = it->second;
+            assert(meta);
+
+            blob_file_number = meta->oldest_blob_file_number;
+          }
+        }
+
+        if (blob_file_number != kInvalidBlobFileNumber &&
+            IsBlobFileInVersion(blob_file_number)) {
+          blob_file_meta_deltas_[blob_file_number].UnlinkSst(number);
+        }
+
         levels_[level].deleted_files.insert(number);
         s = CheckConsistencyForDeletes(edit, number, level);
         if (!s.ok()) {
@@ -542,39 +571,6 @@ class VersionBuilder::Rep {
         if (invalid_levels_[level].erase(number) == 0) {
           // Deleting an non-existing file on invalid level.
           has_invalid_levels_ = true;
-        }
-      }
-
-      {
-        uint64_t blob_file_number = kInvalidBlobFileNumber;
-
-        const auto& base_files = base_vstorage_->LevelFiles(level);
-        for (const FileMetaData* meta : base_files) {
-          assert(meta);
-
-          if (meta->fd.GetNumber() == number) {
-            blob_file_number = meta->oldest_blob_file_number;
-            break;
-          }
-        }
-
-        if (blob_file_number == kInvalidBlobFileNumber) {
-          if (level < num_levels_) {
-            const auto& added_files = levels_[level].added_files;
-
-            auto it = added_files.find(number);
-            if (it != added_files.end()) {
-              const FileMetaData* const meta = it->second;
-              assert(meta);
-
-              blob_file_number = meta->oldest_blob_file_number;
-            }
-          }
-        }
-
-        if (blob_file_number != kInvalidBlobFileNumber &&
-            IsBlobFileInVersion(blob_file_number)) {
-          blob_file_meta_deltas_[blob_file_number].UnlinkSst(number);
         }
       }
     }
