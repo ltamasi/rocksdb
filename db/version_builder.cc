@@ -589,10 +589,10 @@ class VersionBuilder::Rep {
         levels_[level].deleted_files.erase(f->fd.GetNumber());
         levels_[level].added_files[f->fd.GetNumber()] = f;
 
-        if (meta.oldest_blob_file_number != kInvalidBlobFileNumber &&
-            IsBlobFileInVersion(meta.oldest_blob_file_number)) {
-          blob_file_meta_deltas_[meta.oldest_blob_file_number].LinkSst(
-              meta.fd.GetNumber());
+        if (f->oldest_blob_file_number != kInvalidBlobFileNumber &&
+            IsBlobFileInVersion(f->oldest_blob_file_number)) {
+          blob_file_meta_deltas_[f->oldest_blob_file_number].LinkSst(
+              f->fd.GetNumber());
         }
       } else {
         uint64_t number = meta.fd.GetNumber();
