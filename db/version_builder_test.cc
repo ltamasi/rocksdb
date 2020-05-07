@@ -80,14 +80,15 @@ class VersionBuilderTest : public testing::Test {
 
   void AddBlob(uint64_t blob_file_number, uint64_t total_blob_count,
                uint64_t total_blob_bytes, std::string checksum_method,
-               std::string checksum_value, uint64_t garbage_blob_count,
-               uint64_t garbage_blob_bytes) {
+               std::string checksum_value,
+               BlobFileMetaData::LinkedSsts linked_ssts,
+               uint64_t garbage_blob_count, uint64_t garbage_blob_bytes) {
     auto shared_meta = SharedBlobFileMetaData::Create(
         blob_file_number, total_blob_count, total_blob_bytes,
         std::move(checksum_method), std::move(checksum_value));
-    auto meta = BlobFileMetaData::Create(
-        std::move(shared_meta), BlobFileMetaData::LinkedSsts(),
-        garbage_blob_count, garbage_blob_bytes);
+    auto meta =
+        BlobFileMetaData::Create(std::move(shared_meta), std::move(linked_ssts),
+                                 garbage_blob_count, garbage_blob_bytes);
 
     vstorage_.AddBlobFile(std::move(meta));
   }
@@ -423,7 +424,8 @@ TEST_F(VersionBuilderTest, ApplyBlobFileAdditionAlreadyInBase) {
   constexpr uint64_t garbage_blob_bytes = 456789;
 
   AddBlob(blob_file_number, total_blob_count, total_blob_bytes, checksum_method,
-          checksum_value, garbage_blob_count, garbage_blob_bytes);
+          checksum_value, BlobFileMetaData::LinkedSsts(), garbage_blob_count,
+          garbage_blob_bytes);
 
   EnvOptions env_options;
   constexpr TableCache* table_cache = nullptr;
@@ -482,7 +484,8 @@ TEST_F(VersionBuilderTest, ApplyBlobFileGarbageFileInBase) {
   constexpr uint64_t garbage_blob_bytes = 456789;
 
   AddBlob(blob_file_number, total_blob_count, total_blob_bytes, checksum_method,
-          checksum_value, garbage_blob_count, garbage_blob_bytes);
+          checksum_value, BlobFileMetaData::LinkedSsts(), garbage_blob_count,
+          garbage_blob_bytes);
 
   const auto meta =
       GetBlobFileMetaData(vstorage_.GetBlobFiles(), blob_file_number);
@@ -621,8 +624,8 @@ TEST_F(VersionBuilderTest, SaveBlobFilesTo) {
 
     AddBlob(blob_file_number, total_blob_count, total_blob_bytes,
             /* checksum_method */ std::string(),
-            /* checksum_value */ std::string(), garbage_blob_count,
-            garbage_blob_bytes);
+            /* checksum_value */ std::string(), BlobFileMetaData::LinkedSsts(),
+            garbage_blob_count, garbage_blob_bytes);
   }
 
   EnvOptions env_options;
@@ -711,7 +714,7 @@ TEST_F(VersionBuilderTest, CheckConsistencyForBlobFiles) {
   AddBlob(/* blob_file_number */ 16, /* total_blob_count */ 1000,
           /* total_blob_bytes */ 1000000,
           /* checksum_method */ std::string(),
-          /* checksum_value */ std::string(),
+          /* checksum_value */ std::string(), BlobFileMetaData::LinkedSsts{1},
           /* garbage_blob_count */ 500, /* garbage_blob_bytes */ 300000);
 
   UpdateVersionStorageInfo();
@@ -760,9 +763,9 @@ TEST_F(VersionBuilderTest, CheckConsistencyForBlobFiles) {
   UnrefFilesInVersion(&new_vstorage);
 }
 
-TEST_F(VersionBuilderTest, CheckConsistencyForBlobFilesNotInVersion) {
-  // Initialize base version. The table file points to a blob file that is
-  // not in this version.
+TEST_F(VersionBuilderTest, CheckConsistencyForBlobFilesInconsistentLinks) {
+  // Initialize base version. Links between the table file and the blob file
+  // are inconsistent.
 
   Add(/* level */ 1, /* file_number */ 1, /* smallest */ "150",
       /* largest */ "200", /* file_size */ 100,
@@ -774,7 +777,7 @@ TEST_F(VersionBuilderTest, CheckConsistencyForBlobFilesNotInVersion) {
   AddBlob(/* blob_file_number */ 16, /* total_blob_count */ 1000,
           /* total_blob_bytes */ 1000000,
           /* checksum_method */ std::string(),
-          /* checksum_value */ std::string(),
+          /* checksum_value */ std::string(), BlobFileMetaData::LinkedSsts{1},
           /* garbage_blob_count */ 500, /* garbage_blob_bytes */ 300000);
 
   UpdateVersionStorageInfo();
@@ -794,8 +797,9 @@ TEST_F(VersionBuilderTest, CheckConsistencyForBlobFilesNotInVersion) {
 
   const Status s = builder.SaveTo(&new_vstorage);
   ASSERT_TRUE(s.IsCorruption());
-  ASSERT_TRUE(
-      std::strstr(s.getState(), "Blob file #256 is not part of this version"));
+  ASSERT_TRUE(std::strstr(
+      s.getState(),
+      "Links are inconsistent between table files and blob file #16"));
 
   UnrefFilesInVersion(&new_vstorage);
 }
@@ -814,7 +818,7 @@ TEST_F(VersionBuilderTest, CheckConsistencyForBlobFilesAllGarbage) {
   AddBlob(/* blob_file_number */ 16, /* total_blob_count */ 1000,
           /* total_blob_bytes */ 1000000,
           /* checksum_method */ std::string(),
-          /* checksum_value */ std::string(),
+          /* checksum_value */ std::string(), BlobFileMetaData::LinkedSsts{1},
           /* garbage_blob_count */ 1000, /* garbage_blob_bytes */ 1000000);
 
   UpdateVersionStorageInfo();
