@@ -571,7 +571,7 @@ class VersionBuilder::Rep {
       }
     }
 
-    // Delete files
+    // Delete table files
     const auto& del = edit->GetDeletedFiles();
     for (const auto& del_file : del) {
       const auto level = del_file.first;
@@ -604,7 +604,7 @@ class VersionBuilder::Rep {
       }
     }
 
-    // Add new files
+    // Add new table files
     for (const auto& new_file : edit->GetNewFiles()) {
       const int level = new_file.first;
       const auto& meta = new_file.second;
