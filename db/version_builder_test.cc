@@ -408,6 +408,7 @@ TEST_F(VersionBuilderTest, ApplyBlobFileAddition) {
   ASSERT_EQ(new_meta->GetTotalBlobBytes(), total_blob_bytes);
   ASSERT_EQ(new_meta->GetChecksumMethod(), checksum_method);
   ASSERT_EQ(new_meta->GetChecksumValue(), checksum_value);
+  ASSERT_TRUE(new_meta->GetLinkedSsts().empty());
   ASSERT_EQ(new_meta->GetGarbageBlobCount(), 0);
   ASSERT_EQ(new_meta->GetGarbageBlobBytes(), 0);
 }
@@ -527,6 +528,7 @@ TEST_F(VersionBuilderTest, ApplyBlobFileGarbageFileInBase) {
   ASSERT_EQ(new_meta->GetTotalBlobBytes(), total_blob_bytes);
   ASSERT_EQ(new_meta->GetChecksumMethod(), checksum_method);
   ASSERT_EQ(new_meta->GetChecksumValue(), checksum_value);
+  ASSERT_TRUE(new_meta->GetLinkedSsts().empty());
   ASSERT_EQ(new_meta->GetGarbageBlobCount(),
             garbage_blob_count + new_garbage_blob_count);
   ASSERT_EQ(new_meta->GetGarbageBlobBytes(),
@@ -584,6 +586,7 @@ TEST_F(VersionBuilderTest, ApplyBlobFileGarbageFileAdditionApplied) {
   ASSERT_EQ(new_meta->GetTotalBlobBytes(), total_blob_bytes);
   ASSERT_EQ(new_meta->GetChecksumMethod(), checksum_method);
   ASSERT_EQ(new_meta->GetChecksumValue(), checksum_value);
+  ASSERT_TRUE(new_meta->GetLinkedSsts().empty());
   ASSERT_EQ(new_meta->GetGarbageBlobCount(), garbage_blob_count);
   ASSERT_EQ(new_meta->GetGarbageBlobBytes(), garbage_blob_bytes);
 }
