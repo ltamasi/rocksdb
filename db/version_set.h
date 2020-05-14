@@ -1105,6 +1105,14 @@ class VersionSet {
   // Set the IO Status to OK. Called before Manifest write if needed.
   void SetIOStatusOK() { io_status_ = IOStatus::OK(); }
 
+  void TEST_CreateAndAppendVersion(ColumnFamilyData* cfd) {
+    assert(cfd);
+
+    Version* const version = new Version(cfd, this, file_options_,
+                                         *cfd->GetLatestMutableCFOptions());
+    AppendVersion(cfd, version);
+  }
+
  protected:
   struct ManifestWriter;
 
