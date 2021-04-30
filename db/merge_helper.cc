@@ -183,6 +183,7 @@ Status MergeHelper::MergeUntil(InternalIterator* iter,
 
     // At this point we are guaranteed that we need to process this key.
 
+    // TODO
     assert(IsValueType(ikey.type));
     if (ikey.type != kTypeMerge) {
       // hit a put/delete/single delete

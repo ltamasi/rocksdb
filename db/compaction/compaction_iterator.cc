@@ -9,6 +9,7 @@
 #include <limits>
 
 #include "db/blob/blob_file_builder.h"
+#include "db/blob/blob_garbage_meter.h"
 #include "db/blob/blob_index.h"
 #include "db/snapshot_checker.h"
 #include "port/likely.h"
@@ -379,7 +380,7 @@ void CompactionIterator::NextFromInput() {
     if (ikey_.type == kTypeDeletion || ikey_.type == kTypeSingleDeletion ||
         ikey_.type == kTypeDeletionWithTimestamp) {
       iter_stats_.num_input_deletion_records++;
-    }
+    }  // TODO
     iter_stats_.total_input_raw_key_bytes += key_.size();
     iter_stats_.total_input_raw_value_bytes += value_.size();
 
@@ -590,7 +591,7 @@ void CompactionIterator::NextFromInput() {
             if (next_ikey.type != kTypeValue &&
                 next_ikey.type != kTypeBlobIndex) {
               ++iter_stats_.num_single_del_mismatch;
-            }
+            }  // TODO else if kTypeBlobIndex, parse it
 
             ++iter_stats_.num_record_drop_hidden;
             ++iter_stats_.num_record_drop_obsolete;
@@ -725,6 +726,7 @@ void CompactionIterator::NextFromInput() {
              cmp_->EqualWithoutTimestamp(ikey_.user_key, next_ikey.user_key) &&
              (prev_snapshot == 0 ||
               DEFINITELY_NOT_IN_SNAPSHOT(next_ikey.sequence, prev_snapshot))) {
+        // TODO
         input_->Next();
       }
       // If you find you still need to output a row with this key, we need to output the
@@ -800,6 +802,7 @@ void CompactionIterator::NextFromInput() {
     }
 
     if (need_skip) {
+      // TODO
       input_->Seek(skip_until);
     }
   }
