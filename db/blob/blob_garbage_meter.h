@@ -37,14 +37,25 @@ class BlobGarbageMeter {
     void AddInFlow(uint64_t bytes) { in_flow_.Add(bytes); }
     void AddOutFlow(uint64_t bytes) { out_flow_.Add(bytes); }
 
+    bool IsValid() const {
+      // We're either dealing with an old file, in which case inflow >= outflow
+      // and any difference is new garbage, or a new file, in which case inflow
+      // is zero
+      return (in_flow_.GetCount() >= out_flow_.GetCount() &&
+              in_flow_.GetBytes() >= out_flow_.GetBytes()) ||
+             (!in_flow_.GetCount() && !in_flow_.GetBytes());
+    }
     bool HasGarbage() const {
+      assert(IsValid());
       return in_flow_.GetCount() > out_flow_.GetCount();
     }
     uint64_t GarbageCount() const {
+      assert(IsValid());
       assert(HasGarbage());
       return in_flow_.GetCount() - out_flow_.GetCount();
     }
     uint64_t GarbageBytes() const {
+      assert(IsValid());
       assert(HasGarbage());
       return in_flow_.GetBytes() - out_flow_.GetBytes();
     }
