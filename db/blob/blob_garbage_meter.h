@@ -49,12 +49,12 @@ class BlobGarbageMeter {
       assert(IsValid());
       return in_flow_.GetCount() > out_flow_.GetCount();
     }
-    uint64_t GarbageCount() const {
+    uint64_t GetGarbageCount() const {
       assert(IsValid());
       assert(HasGarbage());
       return in_flow_.GetCount() - out_flow_.GetCount();
     }
-    uint64_t GarbageBytes() const {
+    uint64_t GetGarbageBytes() const {
       assert(IsValid());
       assert(HasGarbage());
       return in_flow_.GetBytes() - out_flow_.GetBytes();
