@@ -280,8 +280,9 @@ class CompactionIteratorTest : public testing::TestWithParam<bool> {
         earliest_write_conflict_snapshot, snapshot_checker_.get(),
         Env::Default(), false /* report_detailed_time */, false,
         range_del_agg_.get(), nullptr /* blob_file_builder */,
-        true /*allow_data_in_errors*/, std::move(compaction), filter,
-        &shutting_down_, /*preserve_deletes_seqnum=*/0,
+        nullptr /* blob_garbage_meter */, true /*allow_data_in_errors*/,
+        std::move(compaction), filter, &shutting_down_,
+        /*preserve_deletes_seqnum=*/0,
         /*manual_compaction_paused=*/nullptr, /*info_log=*/nullptr,
         full_history_ts_low));
   }

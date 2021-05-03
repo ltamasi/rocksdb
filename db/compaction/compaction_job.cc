@@ -22,6 +22,7 @@
 
 #include "db/blob/blob_file_addition.h"
 #include "db/blob/blob_file_builder.h"
+#include "db/blob/blob_garbage_meter.h"
 #include "db/builder.h"
 #include "db/db_impl/db_impl.h"
 #include "db/db_iter.h"
@@ -989,6 +990,8 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
                                 &sub_compact->blob_file_additions)
           : nullptr);
 
+  BlobGarbageMeter blob_garbage_meter;
+
   TEST_SYNC_POINT("CompactionJob::Run():Inprogress");
   TEST_SYNC_POINT_CALLBACK(
       "CompactionJob::Run():PausingManualCompaction:1",
@@ -1013,10 +1016,10 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
       &existing_snapshots_, earliest_write_conflict_snapshot_,
       snapshot_checker_, env_, ShouldReportDetailedTime(env_, stats_),
       /*expect_valid_internal_key=*/true, &range_del_agg,
-      blob_file_builder.get(), db_options_.allow_data_in_errors,
-      sub_compact->compaction, compaction_filter, shutting_down_,
-      preserve_deletes_seqnum_, manual_compaction_paused_, db_options_.info_log,
-      full_history_ts_low));
+      blob_file_builder.get(), &blob_garbage_meter,
+      db_options_.allow_data_in_errors, sub_compact->compaction,
+      compaction_filter, shutting_down_, preserve_deletes_seqnum_,
+      manual_compaction_paused_, db_options_.info_log, full_history_ts_low));
   auto c_iter = sub_compact->c_iter.get();
   c_iter->SeekToFirst();
   if (c_iter->Valid() && sub_compact->compaction->output_level() != 0) {

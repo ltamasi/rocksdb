@@ -23,6 +23,7 @@
 namespace ROCKSDB_NAMESPACE {
 
 class BlobFileBuilder;
+class BlobGarbageMeter;
 
 class CompactionIterator {
  public:
@@ -113,6 +114,7 @@ class CompactionIterator {
                      bool report_detailed_time, bool expect_valid_internal_key,
                      CompactionRangeDelAggregator* range_del_agg,
                      BlobFileBuilder* blob_file_builder,
+                     BlobGarbageMeter* blob_garbage_meter,
                      bool allow_data_in_errors,
                      const Compaction* compaction = nullptr,
                      const CompactionFilter* compaction_filter = nullptr,
@@ -131,6 +133,7 @@ class CompactionIterator {
                      bool report_detailed_time, bool expect_valid_internal_key,
                      CompactionRangeDelAggregator* range_del_agg,
                      BlobFileBuilder* blob_file_builder,
+                     BlobGarbageMeter* blob_garbage_meter,
                      bool allow_data_in_errors,
                      std::unique_ptr<CompactionProxy> compaction,
                      const CompactionFilter* compaction_filter = nullptr,
@@ -253,6 +256,7 @@ class CompactionIterator {
   bool expect_valid_internal_key_;
   CompactionRangeDelAggregator* range_del_agg_;
   BlobFileBuilder* blob_file_builder_;
+  BlobGarbageMeter* blob_garbage_meter_;
   std::unique_ptr<CompactionProxy> compaction_;
   const CompactionFilter* compaction_filter_;
   const std::atomic<bool>* shutting_down_;
