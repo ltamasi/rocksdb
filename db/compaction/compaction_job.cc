@@ -22,6 +22,7 @@
 
 #include "db/blob/blob_file_addition.h"
 #include "db/blob/blob_file_builder.h"
+#include "db/blob/blob_file_garbage.h"
 #include "db/blob/blob_garbage_meter.h"
 #include "db/builder.h"
 #include "db/db_impl/db_impl.h"
@@ -143,6 +144,7 @@ struct CompactionJob::SubcompactionState {
   // State kept for output being generated
   std::vector<Output> outputs;
   std::vector<BlobFileAddition> blob_file_additions;
+  std::vector<BlobFileGarbage> blob_file_garbages;
   std::unique_ptr<WritableFileWriter> outfile;
   std::unique_ptr<TableBuilder> builder;
 
@@ -1192,6 +1194,8 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
     RecordDroppedKeys(range_del_out_stats, &sub_compact->compaction_job_stats);
   }
 
+  blob_garbage_meter.ComputeGarbage(&sub_compact->blob_file_garbages);
+
   if (blob_file_builder) {
     if (status.ok()) {
       status = blob_file_builder->Finish();
@@ -1636,6 +1640,10 @@ Status CompactionJob::InstallCompactionResults(
 
     for (const auto& blob : sub_compact.blob_file_additions) {
       edit->AddBlobFile(blob);
+    }
+
+    for (const auto& blob_garbage : sub_compact.blob_file_garbages) {
+      edit->AddBlobFileGarbage(blob_garbage);
     }
   }
 
