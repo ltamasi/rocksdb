@@ -173,6 +173,10 @@ class CompactionIterator {
   // Do final preparations before presenting the output to the callee.
   void PrepareOutput();
 
+  static Status AddBlobInFlow(BlobGarbageMeter* blob_garbage_meter,
+                              const ParsedInternalKey& ikey,
+                              const Slice& value);
+
   // Passes the output value to the blob file builder (if any), and replaces it
   // with the corresponding blob reference if it has been actually written to a
   // blob file (i.e. if it passed the value size check). Returns true if the

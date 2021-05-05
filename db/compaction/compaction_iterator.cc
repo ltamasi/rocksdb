@@ -382,7 +382,15 @@ void CompactionIterator::NextFromInput() {
     if (ikey_.type == kTypeDeletion || ikey_.type == kTypeSingleDeletion ||
         ikey_.type == kTypeDeletionWithTimestamp) {
       iter_stats_.num_input_deletion_records++;
-    }  // TODO
+    } else if (ikey_.type == kTypeBlobIndex) {
+      const Status s = AddBlobInFlow(blob_garbage_meter_, ikey_, value_);
+      if (!s.ok()) {
+        assert(!valid_);
+        status_ = s;
+        return;
+      }
+    }
+
     iter_stats_.total_input_raw_key_bytes += key_.size();
     iter_stats_.total_input_raw_value_bytes += value_.size();
 
@@ -590,10 +598,17 @@ void CompactionIterator::NextFromInput() {
             // is an unexpected Merge or Delete.  We will compact it out
             // either way. We will maintain counts of how many mismatches
             // happened
-            if (next_ikey.type != kTypeValue &&
-                next_ikey.type != kTypeBlobIndex) {
+            if (next_ikey.type == kTypeBlobIndex) {
+              const Status s = AddBlobInFlow(blob_garbage_meter_, next_ikey,
+                                             input_->value());
+              if (!s.ok()) {
+                assert(!valid_);
+                status_ = s;
+                return;
+              }
+            } else if (next_ikey.type != kTypeValue) {
               ++iter_stats_.num_single_del_mismatch;
-            }  // TODO else if kTypeBlobIndex, parse it
+            }
 
             ++iter_stats_.num_record_drop_hidden;
             ++iter_stats_.num_record_drop_obsolete;
@@ -728,7 +743,15 @@ void CompactionIterator::NextFromInput() {
              cmp_->EqualWithoutTimestamp(ikey_.user_key, next_ikey.user_key) &&
              (prev_snapshot == 0 ||
               DEFINITELY_NOT_IN_SNAPSHOT(next_ikey.sequence, prev_snapshot))) {
-        // TODO
+        if (next_ikey.type == kTypeBlobIndex) {
+          const Status s =
+              AddBlobInFlow(blob_garbage_meter_, next_ikey, input_->value());
+          if (!s.ok()) {
+            assert(!valid_);
+            status_ = s;
+            return;
+          }
+        }
         input_->Next();
       }
       // If you find you still need to output a row with this key, we need to output the
@@ -804,8 +827,30 @@ void CompactionIterator::NextFromInput() {
     }
 
     if (need_skip) {
-      // TODO
-      input_->Seek(skip_until);
+      if (blob_garbage_meter_) {
+        ParsedInternalKey next_ikey;
+        input_->Next();
+
+        while (
+            !IsPausingManualCompaction() && !IsShuttingDown() &&
+            input_->Valid() &&
+            (ParseInternalKey(input_->key(), &next_ikey, allow_data_in_errors_)
+                 .ok()) &&
+            cmp_->Compare(next_ikey.user_key, skip_until) < 0) {
+          if (next_ikey.type == kTypeBlobIndex) {
+            const Status s =
+                AddBlobInFlow(blob_garbage_meter_, next_ikey, input_->value());
+            if (!s.ok()) {
+              valid_ = false;
+              status_ = s;
+              return;
+            }
+          }
+          input_->Next();
+        }
+      } else {
+        input_->Seek(skip_until);
+      }
     }
   }
 
@@ -816,6 +861,34 @@ void CompactionIterator::NextFromInput() {
   if (IsPausingManualCompaction()) {
     status_ = Status::Incomplete(Status::SubCode::kManualCompactionPaused);
   }
+}
+
+Status CompactionIterator::AddBlobInFlow(BlobGarbageMeter* blob_garbage_meter,
+                                         const ParsedInternalKey& ikey,
+                                         const Slice& value) {
+  assert(ikey.type == kTypeBlobIndex);
+
+  if (!blob_garbage_meter) {
+    return Status::OK();
+  }
+
+  BlobIndex blob_index;
+
+  const Status s = blob_index.DecodeFrom(value);
+
+  if (!s.ok()) {
+    return s;
+  }
+
+  if (blob_index.IsInlined() || blob_index.HasTTL()) {
+    return Status::Corruption("Unexpected TTL/inlined blob index");
+  }
+
+  blob_garbage_meter->AddInFlow(
+      blob_index.file_number(),
+      32 + ikey.user_key.size() + blob_index.size());  // FIXME
+
+  return Status::OK();
 }
 
 bool CompactionIterator::ExtractLargeValueIfNeededImpl() {
@@ -954,6 +1027,32 @@ void CompactionIterator::PrepareOutput() {
       ExtractLargeValueIfNeeded();
     } else if (ikey_.type == kTypeBlobIndex) {
       GarbageCollectBlobIfNeeded();
+    }
+
+    if (blob_garbage_meter_ && ikey_.type == kTypeBlobIndex) {
+      BlobIndex blob_index;
+
+      {
+        const Status s = blob_index.DecodeFrom(value_);
+
+        if (!s.ok()) {
+          status_ = s;
+          valid_ = false;
+
+          return;
+        }
+      }
+
+      if (blob_index.IsInlined() || blob_index.HasTTL()) {
+        status_ = Status::Corruption("Unexpected TTL/inlined blob index");
+        valid_ = false;
+
+        return;
+      }
+
+      blob_garbage_meter_->AddOutFlow(
+          blob_index.file_number(),
+          32 + ikey_.user_key.size() + blob_index.size());  // FIXME
     }
 
     // Zeroing out the sequence number leads to better compression.
