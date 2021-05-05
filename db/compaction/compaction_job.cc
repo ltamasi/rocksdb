@@ -992,7 +992,18 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
                                 &sub_compact->blob_file_additions)
           : nullptr);
 
-  BlobGarbageMeter blob_garbage_meter;
+  Version* const input_version = sub_compact->compaction->input_version();
+  assert(input_version);
+
+  const VersionStorageInfo* const storage_info = input_version->storage_info();
+  assert(storage_info);
+
+  const auto& blob_files = storage_info->GetBlobFiles();
+
+  std::unique_ptr<BlobGarbageMeter> blob_garbage_meter;
+  if (!blob_files.empty()) {
+    blob_garbage_meter.reset(new BlobGarbageMeter);
+  }
 
   TEST_SYNC_POINT("CompactionJob::Run():Inprogress");
   TEST_SYNC_POINT_CALLBACK(
@@ -1018,7 +1029,7 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
       &existing_snapshots_, earliest_write_conflict_snapshot_,
       snapshot_checker_, env_, ShouldReportDetailedTime(env_, stats_),
       /*expect_valid_internal_key=*/true, &range_del_agg,
-      blob_file_builder.get(), &blob_garbage_meter,
+      blob_file_builder.get(), blob_garbage_meter.get(),
       db_options_.allow_data_in_errors, sub_compact->compaction,
       compaction_filter, shutting_down_, preserve_deletes_seqnum_,
       manual_compaction_paused_, db_options_.info_log, full_history_ts_low));
@@ -1194,7 +1205,9 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
     RecordDroppedKeys(range_del_out_stats, &sub_compact->compaction_job_stats);
   }
 
-  blob_garbage_meter.ComputeGarbage(&sub_compact->blob_file_garbages);
+  if (blob_garbage_meter) {
+    blob_garbage_meter->ComputeGarbage(&sub_compact->blob_file_garbages);
+  }
 
   if (blob_file_builder) {
     if (status.ok()) {
