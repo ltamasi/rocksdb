@@ -20,6 +20,7 @@
 #include <utility>
 #include <vector>
 
+#include "db/blob/blob_counting_iterator.h"
 #include "db/blob/blob_file_addition.h"
 #include "db/blob/blob_file_builder.h"
 #include "db/builder.h"
@@ -1095,9 +1096,24 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
 
   // Although the v2 aggregator is what the level iterator(s) know about,
   // the AddTombstones calls will be propagated down to the v1 aggregator.
-  std::unique_ptr<InternalIterator> input(
+  std::unique_ptr<InternalIterator> raw_input(
       versions_->MakeInputIterator(read_options, sub_compact->compaction,
                                    &range_del_agg, file_options_for_read_));
+
+  Version* const input_version = sub_compact->compaction->input_version();
+  assert(input_version);
+
+  const VersionStorageInfo* const storage_info = input_version->storage_info();
+  assert(storage_info);
+
+  const auto& blob_files = storage_info->GetBlobFiles();
+
+  std::unique_ptr<InternalIterator> blob_counter(
+      !blob_files.empty() ? new BlobCountingIterator(raw_input.get())
+                          : nullptr);
+
+  InternalIterator* const input =
+      blob_counter ? blob_counter.get() : raw_input.get();
 
   AutoThreadOperationStageUpdater stage_updater(
       ThreadStatus::STAGE_COMPACTION_PROCESS_KV);
@@ -1166,7 +1182,7 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
   const std::string* const full_history_ts_low =
       full_history_ts_low_.empty() ? nullptr : &full_history_ts_low_;
   sub_compact->c_iter.reset(new CompactionIterator(
-      input.get(), cfd->user_comparator(), &merge, versions_->LastSequence(),
+      input, cfd->user_comparator(), &merge, versions_->LastSequence(),
       &existing_snapshots_, earliest_write_conflict_snapshot_,
       snapshot_checker_, env_, ShouldReportDetailedTime(env_, stats_),
       /*expect_valid_internal_key=*/true, &range_del_agg,
@@ -1199,6 +1215,7 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
 
     // If an end key (exclusive) is specified, check if the current key is
     // >= than it and exit if it is because the iterator is out of its range
+    // TODO
     if (end != nullptr &&
         cfd->user_comparator()->Compare(c_iter->user_key(), *end) >= 0) {
       break;
@@ -1387,7 +1404,8 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
 #endif  // ROCKSDB_ASSERT_STATUS_CHECKED
 
   sub_compact->c_iter.reset();
-  input.reset();
+  blob_counter.reset();
+  raw_input.reset();
   sub_compact->status = status;
 }
 
