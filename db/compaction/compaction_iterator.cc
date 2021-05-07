@@ -36,8 +36,9 @@
 namespace ROCKSDB_NAMESPACE {
 
 CompactionIterator::CompactionIterator(
-    InternalIterator* input, const Comparator* cmp, MergeHelper* merge_helper,
-    SequenceNumber last_sequence, std::vector<SequenceNumber>* snapshots,
+    InternalIterator* input, const Slice* end, const Comparator* cmp,
+    MergeHelper* merge_helper, SequenceNumber last_sequence,
+    std::vector<SequenceNumber>* snapshots,
     SequenceNumber earliest_write_conflict_snapshot,
     const SnapshotChecker* snapshot_checker, Env* env,
     bool report_detailed_time, bool expect_valid_internal_key,
@@ -51,7 +52,7 @@ CompactionIterator::CompactionIterator(
     const std::shared_ptr<Logger> info_log,
     const std::string* full_history_ts_low)
     : CompactionIterator(
-          input, cmp, merge_helper, last_sequence, snapshots,
+          input, end, cmp, merge_helper, last_sequence, snapshots,
           earliest_write_conflict_snapshot, snapshot_checker, env,
           report_detailed_time, expect_valid_internal_key, range_del_agg,
           blob_file_builder, blob_garbage_meter, allow_data_in_errors,
@@ -61,8 +62,9 @@ CompactionIterator::CompactionIterator(
           manual_compaction_paused, info_log, full_history_ts_low) {}
 
 CompactionIterator::CompactionIterator(
-    InternalIterator* input, const Comparator* cmp, MergeHelper* merge_helper,
-    SequenceNumber /*last_sequence*/, std::vector<SequenceNumber>* snapshots,
+    InternalIterator* input, const Slice* end, const Comparator* cmp,
+    MergeHelper* merge_helper, SequenceNumber /*last_sequence*/,
+    std::vector<SequenceNumber>* snapshots,
     SequenceNumber earliest_write_conflict_snapshot,
     const SnapshotChecker* snapshot_checker, Env* env,
     bool report_detailed_time, bool expect_valid_internal_key,
@@ -76,6 +78,7 @@ CompactionIterator::CompactionIterator(
     const std::shared_ptr<Logger> info_log,
     const std::string* full_history_ts_low)
     : input_(input),
+      end_(end),
       cmp_(cmp),
       merge_helper_(merge_helper),
       snapshots_(snapshots),
@@ -353,8 +356,12 @@ void CompactionIterator::NextFromInput() {
   at_next_ = false;
   valid_ = false;
 
-  while (!valid_ && input_->Valid() && !IsPausingManualCompaction() &&
-         !IsShuttingDown()) {
+  while (!valid_ && input_->Valid() &&
+         (!end_ ||
+          input_->UpperBoundCheckResult() == IterBoundCheck::kInbound ||
+          (input_->UpperBoundCheckResult() == IterBoundCheck::kUnknown &&
+           cmp_->Compare(input_->user_key(), *end_) < 0)) &&
+         !IsPausingManualCompaction() && !IsShuttingDown()) {
     key_ = input_->key();
     value_ = input_->value();
     iter_stats_.num_input_records++;

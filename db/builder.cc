@@ -159,10 +159,11 @@ Status BuildTable(
                                   &blob_file_paths, blob_file_additions)
             : nullptr);
 
+    constexpr Slice* end = nullptr;
     constexpr BlobGarbageMeter* blob_garbage_meter = nullptr;
 
     CompactionIterator c_iter(
-        iter, tboptions.internal_comparator.user_comparator(), &merge,
+        iter, end, tboptions.internal_comparator.user_comparator(), &merge,
         kMaxSequenceNumber, &snapshots, earliest_write_conflict_snapshot,
         snapshot_checker, env, ShouldReportDetailedTime(env, ioptions.stats),
         true /* internal key corruption is not ok */, range_del_agg.get(),

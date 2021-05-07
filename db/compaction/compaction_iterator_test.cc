@@ -276,12 +276,13 @@ class CompactionIteratorTest : public testing::TestWithParam<bool> {
     iter_.reset(new LoggingForwardVectorIterator(ks, vs));
     iter_->SeekToFirst();
     c_iter_.reset(new CompactionIterator(
-        iter_.get(), cmp_, merge_helper_.get(), last_sequence, &snapshots_,
-        earliest_write_conflict_snapshot, snapshot_checker_.get(),
-        Env::Default(), false /* report_detailed_time */, false,
-        range_del_agg_.get(), nullptr /* blob_file_builder */,
-        nullptr /* blob_garbage_meter */, true /*allow_data_in_errors*/,
-        std::move(compaction), filter, &shutting_down_,
+        iter_.get(), nullptr /* end */, cmp_, merge_helper_.get(),
+        last_sequence, &snapshots_, earliest_write_conflict_snapshot,
+        snapshot_checker_.get(), Env::Default(),
+        false /* report_detailed_time */, false, range_del_agg_.get(),
+        nullptr /* blob_file_builder */, nullptr /* blob_garbage_meter */,
+        true /*allow_data_in_errors*/, std::move(compaction), filter,
+        &shutting_down_,
         /*preserve_deletes_seqnum=*/0,
         /*manual_compaction_paused=*/nullptr, /*info_log=*/nullptr,
         full_history_ts_low));
