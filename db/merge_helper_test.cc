@@ -3,11 +3,13 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
+#include "db/merge_helper.h"
+
 #include <algorithm>
 #include <string>
 #include <vector>
 
-#include "db/merge_helper.h"
+#include "db/compaction/compaction_input_iterator.h"
 #include "rocksdb/comparator.h"
 #include "test_util/testharness.h"
 #include "test_util/testutil.h"
@@ -25,11 +27,12 @@ class MergeHelperTest : public testing::Test {
   Status Run(SequenceNumber stop_before, bool at_bottom,
              SequenceNumber latest_snapshot = 0) {
     iter_.reset(new test::VectorIterator(ks_, vs_));
-    iter_->SeekToFirst();
+    RegularCompactionInputIterator input(iter_.get(), nullptr, nullptr,
+                                         BytewiseComparator());
     merge_helper_.reset(new MergeHelper(env_, BytewiseComparator(),
                                         merge_op_.get(), filter_.get(), nullptr,
                                         false, latest_snapshot));
-    return merge_helper_->MergeUntil(iter_.get(), nullptr /* range_del_agg */,
+    return merge_helper_->MergeUntil(&input, nullptr /* range_del_agg */,
                                      stop_before, at_bottom);
   }
 

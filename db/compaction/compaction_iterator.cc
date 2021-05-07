@@ -11,6 +11,7 @@
 #include "db/blob/blob_file_builder.h"
 #include "db/blob/blob_garbage_meter.h"
 #include "db/blob/blob_index.h"
+#include "db/compaction/compaction_input_iterator.h"
 #include "db/snapshot_checker.h"
 #include "port/likely.h"
 #include "rocksdb/listener.h"
@@ -36,7 +37,7 @@
 namespace ROCKSDB_NAMESPACE {
 
 CompactionIterator::CompactionIterator(
-    InternalIterator* input, const Slice* end, const Comparator* cmp,
+    CompactionInputIterator* input, const Slice* end, const Comparator* cmp,
     MergeHelper* merge_helper, SequenceNumber last_sequence,
     std::vector<SequenceNumber>* snapshots,
     SequenceNumber earliest_write_conflict_snapshot,
@@ -62,7 +63,7 @@ CompactionIterator::CompactionIterator(
           manual_compaction_paused, info_log, full_history_ts_low) {}
 
 CompactionIterator::CompactionIterator(
-    InternalIterator* input, const Slice* end, const Comparator* cmp,
+    CompactionInputIterator* input, const Slice* end, const Comparator* cmp,
     MergeHelper* merge_helper, SequenceNumber /*last_sequence*/,
     std::vector<SequenceNumber>* snapshots,
     SequenceNumber earliest_write_conflict_snapshot,
@@ -357,10 +358,6 @@ void CompactionIterator::NextFromInput() {
   valid_ = false;
 
   while (!valid_ && input_->Valid() &&
-         (!end_ ||
-          input_->UpperBoundCheckResult() == IterBoundCheck::kInbound ||
-          (input_->UpperBoundCheckResult() == IterBoundCheck::kUnknown &&
-           cmp_->Compare(input_->user_key(), *end_) < 0)) &&
          !IsPausingManualCompaction() && !IsShuttingDown()) {
     key_ = input_->key();
     value_ = input_->value();
@@ -856,7 +853,7 @@ void CompactionIterator::NextFromInput() {
           input_->Next();
         }
       } else {
-        input_->Seek(skip_until);
+        input_->SkipUntil(skip_until);
       }
     }
   }

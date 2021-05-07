@@ -20,6 +20,7 @@
 
 namespace ROCKSDB_NAMESPACE {
 
+class CompactionInputIterator;
 class Comparator;
 class Iterator;
 class Logger;
@@ -80,7 +81,7 @@ class MergeHelper {
   // - ShutdownInProgress: interrupted by shutdown (*shutting_down == true).
   //
   // REQUIRED: The first key in the input is not corrupted.
-  Status MergeUntil(InternalIterator* iter,
+  Status MergeUntil(CompactionInputIterator* iter,
                     CompactionRangeDelAggregator* range_del_agg = nullptr,
                     const SequenceNumber stop_before = 0,
                     const bool at_bottom = false,

@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "db/blob/blob_file_builder.h"
+#include "db/compaction/compaction_input_iterator.h"
 #include "db/compaction/compaction_iterator.h"
 #include "db/dbformat.h"
 #include "db/event_helpers.h"
@@ -159,13 +160,19 @@ Status BuildTable(
                                   &blob_file_paths, blob_file_additions)
             : nullptr);
 
+    constexpr Slice* start = nullptr;
     constexpr Slice* end = nullptr;
+    const Comparator* const cmp =
+        tboptions.internal_comparator.user_comparator();
+
+    RegularCompactionInputIterator input(iter, start, end, cmp);
+
     constexpr BlobGarbageMeter* blob_garbage_meter = nullptr;
 
     CompactionIterator c_iter(
-        iter, end, tboptions.internal_comparator.user_comparator(), &merge,
-        kMaxSequenceNumber, &snapshots, earliest_write_conflict_snapshot,
-        snapshot_checker, env, ShouldReportDetailedTime(env, ioptions.stats),
+        &input, end, cmp, &merge, kMaxSequenceNumber, &snapshots,
+        earliest_write_conflict_snapshot, snapshot_checker, env,
+        ShouldReportDetailedTime(env, ioptions.stats),
         true /* internal key corruption is not ok */, range_del_agg.get(),
         blob_file_builder.get(), blob_garbage_meter,
         ioptions.allow_data_in_errors,

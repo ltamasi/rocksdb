@@ -24,6 +24,7 @@ namespace ROCKSDB_NAMESPACE {
 
 class BlobFileBuilder;
 class BlobGarbageMeter;
+class CompactionInputIterator;
 
 class CompactionIterator {
  public:
@@ -106,7 +107,7 @@ class CompactionIterator {
     const Compaction* compaction_;
   };
 
-  CompactionIterator(InternalIterator* input, const Slice* end,
+  CompactionIterator(CompactionInputIterator* input, const Slice* end,
                      const Comparator* cmp, MergeHelper* merge_helper,
                      SequenceNumber last_sequence,
                      std::vector<SequenceNumber>* snapshots,
@@ -126,7 +127,7 @@ class CompactionIterator {
                      const std::string* full_history_ts_low = nullptr);
 
   // Constructor with custom CompactionProxy, used for tests.
-  CompactionIterator(InternalIterator* input, const Slice* end,
+  CompactionIterator(CompactionInputIterator* input, const Slice* end,
                      const Comparator* cmp, MergeHelper* merge_helper,
                      SequenceNumber last_sequence,
                      std::vector<SequenceNumber>* snapshots,
@@ -243,7 +244,7 @@ class CompactionIterator {
   static uint64_t ComputeBlobGarbageCollectionCutoffFileNumber(
       const CompactionProxy* compaction);
 
-  InternalIterator* input_;
+  CompactionInputIterator* input_;
   const Slice* end_;
   const Comparator* cmp_;
   MergeHelper* merge_helper_;

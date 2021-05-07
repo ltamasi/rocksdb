@@ -26,6 +26,7 @@
 #include "db/blob/blob_file_garbage.h"
 #include "db/blob/blob_garbage_meter.h"
 #include "db/builder.h"
+#include "db/compaction/compaction_input_iterator.h"
 #include "db/db_impl/db_impl.h"
 #include "db/db_iter.h"
 #include "db/dbformat.h"
@@ -946,21 +947,6 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
       versions_->MakeInputIterator(read_options, sub_compact->compaction,
                                    &range_del_agg, file_options_for_read_));
 
-  Version* const input_version = sub_compact->compaction->input_version();
-  assert(input_version);
-
-  const VersionStorageInfo* const storage_info = input_version->storage_info();
-  assert(storage_info);
-
-  const auto& blob_files = storage_info->GetBlobFiles();
-
-  std::unique_ptr<InternalIterator> blob_counter(
-      !blob_files.empty() ? new BlobCountingIterator(raw_input.get())
-                          : nullptr);
-
-  InternalIterator* const input =
-      blob_counter ? blob_counter.get() : raw_input.get();
-
   AutoThreadOperationStageUpdater stage_updater(
       ThreadStatus::STAGE_COMPACTION_PROCESS_KV);
 
@@ -1010,9 +996,7 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
           : nullptr);
 
   std::unique_ptr<BlobGarbageMeter> blob_garbage_meter;
-  if (!blob_files.empty()) {
-    blob_garbage_meter.reset(new BlobGarbageMeter);
-  }
+  // blob_garbage_meter.reset(new BlobGarbageMeter);
 
   TEST_SYNC_POINT("CompactionJob::Run():Inprogress");
   TEST_SYNC_POINT_CALLBACK(
@@ -1022,19 +1006,15 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
 
   Slice* start = sub_compact->start;
   Slice* end = sub_compact->end;
-  if (start != nullptr) {
-    IterKey start_iter;
-    start_iter.SetInternalKey(*start, kMaxSequenceNumber, kValueTypeForSeek);
-    input->Seek(start_iter.GetInternalKey());
-  } else {
-    input->SeekToFirst();
-  }
+
+  RegularCompactionInputIterator input(raw_input.get(), start, end,
+                                       cfd->user_comparator());
 
   Status status;
   const std::string* const full_history_ts_low =
       full_history_ts_low_.empty() ? nullptr : &full_history_ts_low_;
   sub_compact->c_iter.reset(new CompactionIterator(
-      input, end, cfd->user_comparator(), &merge, versions_->LastSequence(),
+      &input, end, cfd->user_comparator(), &merge, versions_->LastSequence(),
       &existing_snapshots_, earliest_write_conflict_snapshot_,
       snapshot_checker_, env_, ShouldReportDetailedTime(env_, stats_),
       /*expect_valid_internal_key=*/true, &range_del_agg,
@@ -1148,7 +1128,7 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
         next_key = &c_iter->key();
       }
       CompactionIterationStats range_del_out_stats;
-      status = FinishCompactionOutputFile(input->status(), sub_compact,
+      status = FinishCompactionOutputFile(raw_input->status(), sub_compact,
                                           &range_del_agg, &range_del_out_stats,
                                           next_key);
       RecordDroppedKeys(range_del_out_stats,
@@ -1192,7 +1172,7 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
     status = Status::Incomplete(Status::SubCode::kManualCompactionPaused);
   }
   if (status.ok()) {
-    status = input->status();
+    status = raw_input->status();
   }
   if (status.ok()) {
     status = c_iter->status();
@@ -1254,14 +1234,13 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
     if (sub_compact->c_iter) {
       sub_compact->c_iter->status().PermitUncheckedError();
     }
-    if (input) {
-      input->status().PermitUncheckedError();
+    if (raw_input) {
+      raw_input->status().PermitUncheckedError();
     }
   }
 #endif  // ROCKSDB_ASSERT_STATUS_CHECKED
 
   sub_compact->c_iter.reset();
-  blob_counter.reset();
   raw_input.reset();
   sub_compact->status = status;
 }
