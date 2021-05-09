@@ -25,6 +25,7 @@
 #include "db/blob/blob_file_builder.h"
 #include "db/blob/blob_garbage_meter.h"
 #include "db/builder.h"
+#include "db/compaction/clipping_iterator.h"
 #include "db/db_impl/db_impl.h"
 #include "db/db_iter.h"
 #include "db/dbformat.h"
@@ -1087,6 +1088,10 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
 
   CompactionRangeDelAggregator range_del_agg(&cfd->internal_comparator(),
                                              existing_snapshots_);
+
+  Slice* start = sub_compact->start;
+  Slice* end = sub_compact->end;
+
   ReadOptions read_options;
   read_options.verify_checksums = true;
   read_options.fill_cache = false;
@@ -1095,12 +1100,38 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
   // (a) concurrent compactions,
   // (b) CompactionFilter::Decision::kRemoveAndSkipUntil.
   read_options.total_order_seek = true;
+  read_options.iterate_lower_bound = start;
+  read_options.iterate_upper_bound = end;
 
   // Although the v2 aggregator is what the level iterator(s) know about,
   // the AddTombstones calls will be propagated down to the v1 aggregator.
   std::unique_ptr<InternalIterator> raw_input(
       versions_->MakeInputIterator(read_options, sub_compact->compaction,
                                    &range_del_agg, file_options_for_read_));
+
+  InternalIterator* input = raw_input.get();
+
+  IterKey start_ikey;
+  IterKey end_ikey;
+  Slice start_slice;
+  Slice end_slice;
+
+  if (start) {
+    start_ikey.SetInternalKey(*start, kMaxSequenceNumber, kValueTypeForSeek);
+    start_slice = start_ikey.GetInternalKey();
+  }
+  if (end) {
+    end_ikey.SetInternalKey(*end, 0, kValueTypeForSeekForPrev);
+    end_slice = end_ikey.GetInternalKey();
+  }
+
+  std::unique_ptr<InternalIterator> clip;
+  if (start || end) {
+    clip.reset(new ClippingIterator(
+        raw_input.get(), start ? &start_slice : nullptr,
+        end ? &end_slice : nullptr, &cfd->internal_comparator()));
+    input = clip.get();
+  }
 
   Version* const input_version = sub_compact->compaction->input_version();
   assert(input_version);
@@ -1110,18 +1141,16 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
 
   const auto& blob_files = storage_info->GetBlobFiles();
 
+  std::unique_ptr<InternalIterator> blob_counter;
+
   if (!blob_files.empty()) {
     sub_compact->blob_garbage_meter.reset(new BlobGarbageMeter);
+    blob_counter.reset(
+        new BlobCountingIterator(input, sub_compact->blob_garbage_meter.get()));
+    input = blob_counter.get();
   }
 
-  std::unique_ptr<InternalIterator> blob_counter(
-      !blob_files.empty()
-          ? new BlobCountingIterator(raw_input.get(),
-                                     sub_compact->blob_garbage_meter.get())
-          : nullptr);
-
-  InternalIterator* const input =
-      blob_counter ? blob_counter.get() : raw_input.get();
+  input->SeekToFirst();
 
   AutoThreadOperationStageUpdater stage_updater(
       ThreadStatus::STAGE_COMPACTION_PROCESS_KV);
@@ -1176,16 +1205,6 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
       reinterpret_cast<void*>(
           const_cast<std::atomic<int>*>(manual_compaction_paused_)));
 
-  Slice* start = sub_compact->start;
-  Slice* end = sub_compact->end;
-  if (start != nullptr) {
-    IterKey start_iter;
-    start_iter.SetInternalKey(*start, kMaxSequenceNumber, kValueTypeForSeek);
-    input->Seek(start_iter.GetInternalKey());
-  } else {
-    input->SeekToFirst();
-  }
-
   Status status;
   const std::string* const full_history_ts_low =
       full_history_ts_low_.empty() ? nullptr : &full_history_ts_low_;
@@ -1226,6 +1245,7 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
     // TODO
     if (end != nullptr &&
         cfd->user_comparator()->Compare(c_iter->user_key(), *end) >= 0) {
+      assert(false);
       break;
     }
     if (c_iter_stats.num_input_records % kRecordStatsEvery ==
@@ -1417,6 +1437,7 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
 
   sub_compact->c_iter.reset();
   blob_counter.reset();
+  clip.reset();
   raw_input.reset();
   sub_compact->status = status;
 }
