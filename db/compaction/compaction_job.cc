@@ -1687,6 +1687,13 @@ Status CompactionJob::InstallCompactionResults(
     for (const auto& blob : sub_compact.blob_file_additions) {
       edit->AddBlobFile(blob);
     }
+
+    const BlobGarbageMeter* blob_garbage_meter = compact_->blob_garbage_meter.get();
+    if (blob_garbage_meter) {
+      std::vector<BlobFileGarbage> blob_file_garbages;
+      blob_garbage_meter->ComputeGarbage(&blob_file_garbages);
+      edit->SetBlobFileGarbages(std::move(blob_file_garbages));
+    }
   }
 
   return versions_->LogAndApply(compaction->column_family_data(),
