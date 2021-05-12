@@ -790,7 +790,8 @@ Status CompactionJob::Run() {
                         output.meta.fd.GetNumber(), output.meta.fd.GetPathId());
       tp[fn] = output.table_properties;
 
-      if (!tp[fn]) {
+      if (!tp[fn] || !compact_->blob_garbage_meter ||
+          output.meta.oldest_blob_file_number == kInvalidBlobFileNumber) {
         continue;
       }
 
@@ -799,10 +800,6 @@ Status CompactionJob::Run() {
       auto it = user_props.find(TablePropertiesNames::kBlobFileMapping);
       if (it == user_props.end()) {
         continue;
-      }
-
-      if (!compact_->blob_garbage_meter) {
-        compact_->blob_garbage_meter.reset(new BlobGarbageMeter);
       }
 
       compact_->blob_garbage_meter->ProcessOutFlow(it->second);
