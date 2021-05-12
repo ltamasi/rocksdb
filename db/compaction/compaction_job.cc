@@ -22,6 +22,7 @@
 
 #include "db/blob/blob_file_addition.h"
 #include "db/blob/blob_file_builder.h"
+#include "db/blob/blob_garbage_meter.h"
 #include "db/builder.h"
 #include "db/db_impl/db_impl.h"
 #include "db/db_iter.h"
@@ -236,6 +237,7 @@ struct CompactionJob::CompactionState {
   // REQUIRED: subcompaction states are stored in order of increasing
   // key-range
   std::vector<CompactionJob::SubcompactionState> sub_compact_states;
+  std::unique_ptr<BlobGarbageMeter> blob_garbage_meter;
   Status status;
 
   size_t num_output_files = 0;
@@ -447,6 +449,37 @@ void CompactionJob::Prepare() {
     constexpr uint64_t size = 0;
 
     compact_->sub_compact_states.emplace_back(c, start, end, size);
+  }
+
+  for (size_t i = 0; i < c->num_input_levels(); ++i) {
+    for (const FileMetaData* meta : *c->inputs(i)) {
+      assert(meta);
+
+      if (meta->oldest_blob_file_number == kInvalidBlobFileNumber) {
+        continue;
+      }
+
+      std::shared_ptr<const TableProperties> tp;
+      Status s = current->GetTableProperties(&tp, meta);
+      if (!s.ok()) {
+        return;  // TODO
+      }
+
+      assert(tp);
+
+      const auto& user_props = tp->user_collected_properties;
+
+      auto it = user_props.find(TablePropertiesNames::kBlobFileMapping);
+      if (it == user_props.end()) {
+        continue;
+      }
+
+      if (!compact_->blob_garbage_meter) {
+        compact_->blob_garbage_meter.reset(new BlobGarbageMeter);
+      }
+
+      compact_->blob_garbage_meter->ProcessInFlow(it->second);
+    }
   }
 }
 
@@ -756,6 +789,23 @@ Status CompactionJob::Run() {
           TableFileName(state.compaction->immutable_cf_options()->cf_paths,
                         output.meta.fd.GetNumber(), output.meta.fd.GetPathId());
       tp[fn] = output.table_properties;
+
+      if (!tp[fn]) {
+        continue;
+      }
+
+      const auto& user_props = tp[fn]->user_collected_properties;
+
+      auto it = user_props.find(TablePropertiesNames::kBlobFileMapping);
+      if (it == user_props.end()) {
+        continue;
+      }
+
+      if (!compact_->blob_garbage_meter) {
+        compact_->blob_garbage_meter.reset(new BlobGarbageMeter);
+      }
+
+      compact_->blob_garbage_meter->ProcessOutFlow(it->second);
     }
   }
   compact_->compaction->SetOutputTableProperties(std::move(tp));
