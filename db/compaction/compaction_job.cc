@@ -460,7 +460,7 @@ void CompactionJob::Prepare() {
       }
 
       std::shared_ptr<const TableProperties> tp;
-      Status s = current->GetTableProperties(&tp, meta);
+      Status s = cfd->current()->GetTableProperties(&tp, meta);
       if (!s.ok()) {
         return;  // TODO
       }
