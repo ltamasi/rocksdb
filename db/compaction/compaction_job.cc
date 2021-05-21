@@ -148,6 +148,7 @@ struct CompactionJob::SubcompactionState {
   // State kept for output being generated
   std::vector<Output> outputs;
   std::vector<BlobFileAddition> blob_file_additions;
+  std::unique_ptr<BlobGarbageMeter> blob_garbage_meter;
   std::unique_ptr<WritableFileWriter> outfile;
   std::unique_ptr<TableBuilder> builder;
 
@@ -1109,12 +1110,14 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
 
   const auto& blob_files = storage_info->GetBlobFiles();
 
-  std::unique_ptr<BlobGarbageMeter> blob_garbage_meter(
-      !blob_files.empty() ? new BlobGarbageMeter : nullptr);
+  if (!blob_files.empty()) {
+    sub_compact->blob_garbage_meter.reset(new BlobGarbageMeter);
+  }
 
   std::unique_ptr<InternalIterator> blob_counter(
       !blob_files.empty()
-          ? new BlobCountingIterator(raw_input.get(), blob_garbage_meter.get())
+          ? new BlobCountingIterator(raw_input.get(),
+                                     sub_compact->blob_garbage_meter.get())
           : nullptr);
 
   InternalIterator* const input =
@@ -1244,8 +1247,8 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
       break;
     }
 
-    if (blob_garbage_meter.get()) {
-      blob_garbage_meter->ProcessOutFlow(key, value);
+    if (sub_compact->blob_garbage_meter) {
+      sub_compact->blob_garbage_meter->ProcessOutFlow(key, value);
     }
 
     sub_compact->current_output_file_size =
@@ -1810,6 +1813,8 @@ Status CompactionJob::InstallCompactionResults(
   // Add compaction inputs
   compaction->AddInputDeletions(edit);
 
+  std::unordered_map<uint64_t, BlobGarbageMeter::BlobStats> blob_total_garbage;
+
   for (const auto& sub_compact : compact_->sub_compact_states) {
     for (const auto& out : sub_compact.outputs) {
       edit->AddFile(compaction->output_level(), out.meta);
@@ -1818,6 +1823,29 @@ Status CompactionJob::InstallCompactionResults(
     for (const auto& blob : sub_compact.blob_file_additions) {
       edit->AddBlobFile(blob);
     }
+
+    if (sub_compact.blob_garbage_meter) {
+      const auto& flows = sub_compact.blob_garbage_meter->flows();
+
+      for (const auto& pair : flows) {
+        const uint64_t blob_file_number = pair.first;
+        const BlobGarbageMeter::BlobInOutFlow& flow = pair.second;
+
+        assert(flow.IsValid());
+        if (flow.HasGarbage()) {
+          blob_total_garbage[blob_file_number].Add(flow.GetGarbageCount(),
+                                                   flow.GetGarbageBytes());
+        }
+      }
+    }
+  }
+
+  for (const auto& pair : blob_total_garbage) {
+    const uint64_t blob_file_number = pair.first;
+    const BlobGarbageMeter::BlobStats& stats = pair.second;
+
+    edit->AddBlobFileGarbage(blob_file_number, stats.GetCount(),
+                             stats.GetBytes());
   }
 
   return versions_->LogAndApply(compaction->column_family_data(),
