@@ -95,7 +95,8 @@ void TableReaderBenchmark(Options& opts, EnvOptions& env_options,
                                          FileOptions(env_options), &file_writer,
                                          nullptr));
 
-    IntTblPropCollectorFactories int_tbl_prop_collector_factories;
+    std::vector<std::unique_ptr<IntTblPropCollectorFactory> >
+        int_tbl_prop_collector_factories;
 
     int unknown_level = -1;
     tb = opts.table_factory->NewTableBuilder(

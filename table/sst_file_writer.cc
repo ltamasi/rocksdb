@@ -213,7 +213,8 @@ Status SstFileWriter::Open(const std::string& file_path) {
     compression_opts = r->mutable_cf_options.compression_opts;
   }
 
-  IntTblPropCollectorFactories int_tbl_prop_collector_factories;
+  std::vector<std::unique_ptr<IntTblPropCollectorFactory>>
+      int_tbl_prop_collector_factories;
 
   // SstFileWriter properties collector to add SstFileWriter version.
   int_tbl_prop_collector_factories.emplace_back(

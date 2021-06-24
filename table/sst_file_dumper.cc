@@ -268,7 +268,8 @@ Status SstFileDumper::ShowCompressionSize(
   const ColumnFamilyOptions cfo(opts);
   const MutableCFOptions moptions(cfo);
   ROCKSDB_NAMESPACE::InternalKeyComparator ikc(opts.comparator);
-  IntTblPropCollectorFactories block_based_table_factories;
+  std::vector<std::unique_ptr<IntTblPropCollectorFactory>>
+      block_based_table_factories;
 
   std::string column_family_name;
   int unknown_level = -1;
