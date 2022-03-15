@@ -384,7 +384,7 @@ class DB {
 
   virtual Status Put(const WriteOptions& /* options */, const Slice& /* key */,
                      const WideColumnDescs& /* column_descs */) {
-    return Status::OK();
+    return Status::NotSupported();
   }
 
   // Remove the database entry (if any) for "key".  Returns OK on
