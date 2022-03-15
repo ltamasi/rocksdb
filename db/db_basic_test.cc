@@ -35,6 +35,26 @@ class DBBasicTest : public DBTestBase {
   DBBasicTest() : DBTestBase("db_basic_test", /*env_do_fsync=*/false) {}
 };
 
+TEST_F(DBBasicTest, WideColumns) {
+  WideColumnDescs orig_descs{
+      {"col1", "val1"}, {"col2", "val2"}, {"col3", "val3"}};
+
+  ASSERT_OK(db_->Put(WriteOptions(), "key", orig_descs));
+
+  Flush();
+
+  std::string buf;
+  WideColumnDescs read_descs;
+  ASSERT_OK(db_->Get(ReadOptions(), "key", &buf, &read_descs));
+  ASSERT_EQ(read_descs, orig_descs);
+
+  WideColumnDesc desc;
+  ASSERT_OK(db_->Get(ReadOptions(), "key", "col2", &buf, &desc));
+  ASSERT_EQ(desc, WideColumnDesc("col2", "val2"));
+
+  ASSERT_NOK(db_->Get(ReadOptions(), "key", "col4", &buf, &desc));
+}
+
 TEST_F(DBBasicTest, OpenWhenOpen) {
   Options options = CurrentOptions();
   options.env = env_;
