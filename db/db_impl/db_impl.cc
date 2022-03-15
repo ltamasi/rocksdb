@@ -51,6 +51,7 @@
 #include "db/table_properties_collector.h"
 #include "db/transaction_log_impl.h"
 #include "db/version_set.h"
+#include "db/wide/wide_column_serialization.h"
 #include "db/write_batch_internal.h"
 #include "db/write_callback.h"
 #include "env/unique_id_gen.h"
@@ -1730,6 +1731,32 @@ Status DBImpl::Get(const ReadOptions& read_options,
   get_impl_options.timestamp = timestamp;
   Status s = GetImpl(read_options, key, get_impl_options);
   return s;
+}
+
+Status DBImpl::Get(const ReadOptions& read_options, const Slice& key,
+                   std::string* buf, WideColumnDescs* column_descs) {
+  const Status s = Get(read_options, key, buf);
+  if (!s.ok()) {
+    return s;
+  }
+
+  Slice input(*buf);
+
+  return WideColumnSerialization::DeserializeAll(&input, column_descs);
+}
+
+Status DBImpl::Get(const ReadOptions& read_options, const Slice& key,
+                   const Slice& column_name, std::string* buf,
+                   WideColumnDesc* column_desc) {
+  const Status s = Get(read_options, key, buf);
+  if (!s.ok()) {
+    return s;
+  }
+
+  Slice input(*buf);
+
+  return WideColumnSerialization::DeserializeOne(&input, column_name,
+                                                 column_desc);
 }
 
 namespace {

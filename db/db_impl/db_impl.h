@@ -191,6 +191,12 @@ class DBImpl : public DB {
                      ColumnFamilyHandle* column_family, const Slice& key,
                      PinnableSlice* value, std::string* timestamp) override;
 
+  virtual Status Get(const ReadOptions& options, const Slice& key,
+                     std::string* buf, WideColumnDescs* column_descs) override;
+  virtual Status Get(const ReadOptions& options, const Slice& key,
+                     const Slice& column_name, std::string* buf,
+                     WideColumnDesc* column_desc) override;
+
   using DB::GetMergeOperands;
   Status GetMergeOperands(const ReadOptions& options,
                           ColumnFamilyHandle* column_family, const Slice& key,

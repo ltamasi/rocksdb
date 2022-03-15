@@ -546,6 +546,20 @@ class DB {
     return Get(options, DefaultColumnFamily(), key, value, timestamp);
   }
 
+  // Get entity
+  virtual Status Get(const ReadOptions& /* options */, const Slice& /* key */,
+                     std::string* /* buf */,
+                     WideColumnDescs* /* column_descs */) {
+    return Status::NotSupported();
+  }
+
+  // Get attribute
+  virtual Status Get(const ReadOptions& /* options */, const Slice& /* key */,
+                     const Slice& /* column_name */, std::string* /* buf */,
+                     WideColumnDesc* /* column_desc */) {
+    return Status::NotSupported();
+  }
+
   // Returns all the merge operands corresponding to the key. If the
   // number of merge operands in DB is greater than
   // merge_operands_options.expected_max_number_of_operands
