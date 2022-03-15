@@ -11,6 +11,7 @@
 #include "db/db_impl/db_impl.h"
 #include "db/error_handler.h"
 #include "db/event_helpers.h"
+#include "db/wide/wide_column_serialization.h"
 #include "logging/logging.h"
 #include "monitoring/perf_context_imp.h"
 #include "options/options_helper.h"
@@ -35,6 +36,18 @@ Status DBImpl::Put(const WriteOptions& o, ColumnFamilyHandle* column_family,
     return s;
   }
   return DB::Put(o, column_family, key, ts, val);
+}
+
+Status DBImpl::Put(const WriteOptions& o, const Slice& key,
+                   const WideColumnDescs& column_descs) {
+  std::string value;
+
+  const Status s = WideColumnSerialization::Serialize(column_descs, &value);
+  if (!s.ok()) {
+    return s;
+  }
+
+  return DB::Put(o, key, value);
 }
 
 Status DBImpl::Merge(const WriteOptions& o, ColumnFamilyHandle* column_family,
