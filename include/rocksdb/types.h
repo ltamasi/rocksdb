@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 #include "rocksdb/slice.h"
@@ -66,5 +67,15 @@ enum EntryType {
 // Wide columns
 using WideColumnDesc = std::pair<Slice, Slice>;
 using WideColumnDescs = std::vector<WideColumnDesc>;
+
+struct WideColumnSlice {
+  PinnableSlice buf;
+  WideColumnDesc column_desc;
+};
+
+struct WideColumnSlices {
+  PinnableSlice buf;
+  WideColumnDescs column_descs;
+};
 
 }  // namespace ROCKSDB_NAMESPACE

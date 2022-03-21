@@ -43,16 +43,22 @@ TEST_F(DBBasicTest, WideColumns) {
 
   Flush();
 
-  std::string buf;
-  WideColumnDescs read_descs;
-  ASSERT_OK(db_->Get(ReadOptions(), "key", &buf, &read_descs));
-  ASSERT_EQ(read_descs, orig_descs);
+  {
+    WideColumnSlices columns;
+    ASSERT_OK(db_->Get(ReadOptions(), "key", &columns));
+    ASSERT_EQ(columns.column_descs, orig_descs);
+  }
 
-  WideColumnDesc desc;
-  ASSERT_OK(db_->Get(ReadOptions(), "key", "col2", &buf, &desc));
-  ASSERT_EQ(desc, WideColumnDesc("col2", "val2"));
+  {
+    WideColumnSlice column;
+    ASSERT_OK(db_->Get(ReadOptions(), "key", "col2", &column));
+    ASSERT_EQ(column.column_desc, WideColumnDesc("col2", "val2"));
+  }
 
-  ASSERT_NOK(db_->Get(ReadOptions(), "key", "col4", &buf, &desc));
+  {
+    WideColumnSlice column;
+    ASSERT_NOK(db_->Get(ReadOptions(), "key", "col4", &column));
+  }
 }
 
 TEST_F(DBBasicTest, OpenWhenOpen) {

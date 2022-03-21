@@ -1734,29 +1734,33 @@ Status DBImpl::Get(const ReadOptions& read_options,
 }
 
 Status DBImpl::Get(const ReadOptions& read_options, const Slice& key,
-                   std::string* buf, WideColumnDescs* column_descs) {
-  const Status s = Get(read_options, key, buf);
+                   WideColumnSlices* columns) {
+  assert(columns);
+
+  const Status s = Get(read_options, DefaultColumnFamily(), key, &columns->buf);
   if (!s.ok()) {
     return s;
   }
 
-  Slice input(*buf);
+  Slice input(columns->buf);
 
-  return WideColumnSerialization::DeserializeAll(&input, column_descs);
+  return WideColumnSerialization::DeserializeAll(&input,
+                                                 &columns->column_descs);
 }
 
 Status DBImpl::Get(const ReadOptions& read_options, const Slice& key,
-                   const Slice& column_name, std::string* buf,
-                   WideColumnDesc* column_desc) {
-  const Status s = Get(read_options, key, buf);
+                   const Slice& column_name, WideColumnSlice* column) {
+  assert(column);
+
+  const Status s = Get(read_options, DefaultColumnFamily(), key, &column->buf);
   if (!s.ok()) {
     return s;
   }
 
-  Slice input(*buf);
+  Slice input(column->buf);
 
   return WideColumnSerialization::DeserializeOne(&input, column_name,
-                                                 column_desc);
+                                                 &column->column_desc);
 }
 
 namespace {

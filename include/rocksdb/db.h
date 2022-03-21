@@ -548,15 +548,14 @@ class DB {
 
   // Get entity
   virtual Status Get(const ReadOptions& /* options */, const Slice& /* key */,
-                     std::string* /* buf */,
-                     WideColumnDescs* /* column_descs */) {
+                     WideColumnSlices* /* columns */) {
     return Status::NotSupported();
   }
 
   // Get attribute
   virtual Status Get(const ReadOptions& /* options */, const Slice& /* key */,
-                     const Slice& /* column_name */, std::string* /* buf */,
-                     WideColumnDesc* /* column_desc */) {
+                     const Slice& /* column_name */,
+                     WideColumnSlice* /* column */) {
     return Status::NotSupported();
   }
 
