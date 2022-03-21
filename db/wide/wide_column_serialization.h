@@ -9,6 +9,7 @@
 #include <utility>
 #include <vector>
 
+#include "rocksdb/merge_operator.h"
 #include "rocksdb/rocksdb_namespace.h"
 #include "rocksdb/status.h"
 #include "rocksdb/types.h"
@@ -27,6 +28,14 @@ class WideColumnSerialization {
 
  private:
   static Status DeserializeIndex(Slice* input, WideColumnDescs* column_descs);
+};
+
+class WideColumnMergeOperator : public AssociativeMergeOperator {
+ public:
+  bool Merge(const Slice& key, const Slice* existing_value, const Slice& value,
+             std::string* new_value, Logger* logger) const override;
+
+  const char* Name() const override { return "WideColumnMergeOperator"; }
 };
 
 }  // namespace ROCKSDB_NAMESPACE

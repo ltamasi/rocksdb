@@ -10,6 +10,7 @@
 #include <cstring>
 
 #include "db/db_test_util.h"
+#include "db/wide/wide_column_serialization.h"
 #include "options/options_helper.h"
 #include "port/stack_trace.h"
 #include "rocksdb/flush_block_policy.h"
@@ -36,6 +37,10 @@ class DBBasicTest : public DBTestBase {
 };
 
 TEST_F(DBBasicTest, WideColumns) {
+  Options options = CurrentOptions();
+  options.merge_operator = std::make_shared<WideColumnMergeOperator>();
+  Reopen(options);
+
   WideColumnDescs orig_descs{
       {"col1", "val1"}, {"col2", "val2"}, {"col3", "val3"}};
 
@@ -58,6 +63,37 @@ TEST_F(DBBasicTest, WideColumns) {
   {
     WideColumnSlice column;
     ASSERT_NOK(db_->Get(ReadOptions(), "key", "col4", &column));
+  }
+
+  WideColumnDescs delta_descs{{"col2", "new_val2"}, {"col5", "val5"}};
+  std::string delta;
+  ASSERT_OK(WideColumnSerialization::Serialize(delta_descs, &delta));
+
+  ASSERT_OK(db_->Merge(WriteOptions(), "key", delta));
+
+  {
+    WideColumnSlices columns;
+    ASSERT_OK(db_->Get(ReadOptions(), "key", &columns));
+
+    WideColumnDescs expected_descs{{"col1", "val1"}, {"col2", "new_val2"}, {"col3", "val3"}, {"col5", "val5"}};
+    ASSERT_EQ(columns.column_descs, expected_descs);
+  }
+
+  {
+    WideColumnSlice column;
+    ASSERT_OK(db_->Get(ReadOptions(), "key", "col2", &column));
+    ASSERT_EQ(column.column_desc, WideColumnDesc("col2", "new_val2"));
+  }
+
+  {
+    WideColumnSlice column;
+    ASSERT_NOK(db_->Get(ReadOptions(), "key", "col4", &column));
+  }
+
+  {
+    WideColumnSlice column;
+    ASSERT_OK(db_->Get(ReadOptions(), "key", "col5", &column));
+    ASSERT_EQ(column.column_desc, WideColumnDesc("col5", "val5"));
   }
 }
 

@@ -113,4 +113,74 @@ Status WideColumnSerialization::DeserializeIndex(
   return Status::OK();
 }
 
+bool WideColumnMergeOperator::Merge(const Slice& /* key */,
+                                    const Slice* existing_value,
+                                    const Slice& value, std::string* new_value,
+                                    Logger* /* logger */) const {
+  assert(new_value);
+
+  if (!existing_value) {
+    new_value->assign(value.data(), value.size());
+    return true;
+  }
+
+  Slice existing_slice(*existing_value);
+  WideColumnDescs existing_descs;
+  if (!WideColumnSerialization::DeserializeAll(&existing_slice, &existing_descs)
+           .ok()) {
+    return false;
+  }
+
+  Slice value_slice(value);
+  WideColumnDescs value_descs;
+  if (!WideColumnSerialization::DeserializeAll(&value_slice, &value_descs)
+           .ok()) {
+    return false;
+  }
+
+  WideColumnDescs result;
+
+  auto ex_it = existing_descs.begin();
+  auto ex_end = existing_descs.end();
+
+  auto val_it = value_descs.begin();
+  auto val_end = value_descs.end();
+
+  while (ex_it != ex_end && val_it != val_end) {
+    const Slice& ex_col = ex_it->first;
+    const Slice& val_col = val_it->first;
+
+    const int diff = ex_col.compare(val_col);
+
+    if (diff < 0) {
+      result.emplace_back(*ex_it);
+      ++ex_it;
+      continue;
+    }
+
+    if (diff > 0) {
+      result.emplace_back(*val_it);
+      ++val_it;
+      continue;
+    }
+
+    assert(diff == 0);
+    result.emplace_back(*val_it);
+    ++ex_it;
+    ++val_it;
+  }
+
+  while (ex_it != ex_end) {
+    result.emplace_back(*ex_it);
+    ++ex_it;
+  }
+
+  while (val_it != val_end) {
+    result.emplace_back(*val_it);
+    ++val_it;
+  }
+
+  return WideColumnSerialization::Serialize(result, new_value).ok();
+}
+
 }  // namespace ROCKSDB_NAMESPACE
