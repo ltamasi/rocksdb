@@ -72,7 +72,10 @@ TEST_F(DBBasicTest, WideColumns) {
     WideColumnSlices columns;
     ASSERT_OK(db_->Get(ReadOptions(), "key", &columns));
 
-    WideColumnDescs expected_descs{{"col1", "val1"}, {"col2", "new_val2"}, {"col3", "val3"}, {"col5", "val5"}};
+    WideColumnDescs expected_descs{{"col1", "val1"},
+                                   {"col2", "new_val2"},
+                                   {"col3", "val3"},
+                                   {"col5", "val5"}};
     ASSERT_EQ(columns.column_descs, expected_descs);
   }
 
