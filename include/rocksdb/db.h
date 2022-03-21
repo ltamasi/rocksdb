@@ -483,6 +483,12 @@ class DB {
         "Merge does not support user-defined timestamp yet");
   }
 
+  virtual Status Merge(const WriteOptions& /* options */,
+                       const Slice& /* key */,
+                       const WideColumnDescs& /* column_descs */) {
+    return Status::NotSupported();
+  }
+
   // Apply the specified updates to the database.
   // If `updates` contains no update, WAL will still be synced if
   // options.sync=true.

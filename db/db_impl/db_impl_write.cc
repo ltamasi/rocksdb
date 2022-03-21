@@ -40,9 +40,15 @@ Status DBImpl::Put(const WriteOptions& o, ColumnFamilyHandle* column_family,
 
 Status DBImpl::Put(const WriteOptions& o, const Slice& key,
                    const WideColumnDescs& column_descs) {
+  WideColumnDescs copy(column_descs);
+  std::sort(copy.begin(), copy.end(),
+            [](const WideColumnDesc& lhs, const WideColumnDesc& rhs) {
+              return lhs.first.compare(rhs.first) < 0;
+            });
+
   std::string value;
 
-  const Status s = WideColumnSerialization::Serialize(column_descs, &value);
+  const Status s = WideColumnSerialization::Serialize(copy, &value);
   if (!s.ok()) {
     return s;
   }
@@ -62,6 +68,24 @@ Status DBImpl::Merge(const WriteOptions& o, ColumnFamilyHandle* column_family,
   } else {
     return DB::Merge(o, column_family, key, val);
   }
+}
+
+Status DBImpl::Merge(const WriteOptions& o, const Slice& key,
+                     const WideColumnDescs& column_descs) {
+  WideColumnDescs copy(column_descs);
+  std::sort(copy.begin(), copy.end(),
+            [](const WideColumnDesc& lhs, const WideColumnDesc& rhs) {
+              return lhs.first.compare(rhs.first) < 0;
+            });
+
+  std::string value;
+
+  const Status s = WideColumnSerialization::Serialize(copy, &value);
+  if (!s.ok()) {
+    return s;
+  }
+
+  return DB::Merge(o, DefaultColumnFamily(), key, value);
 }
 
 Status DBImpl::Delete(const WriteOptions& write_options,

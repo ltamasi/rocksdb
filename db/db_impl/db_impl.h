@@ -160,6 +160,10 @@ class DBImpl : public DB {
   using DB::Merge;
   Status Merge(const WriteOptions& options, ColumnFamilyHandle* column_family,
                const Slice& key, const Slice& value) override;
+
+  Status Merge(const WriteOptions& options, const Slice& key,
+               const WideColumnDescs& column_descs) override;
+
   using DB::Delete;
   Status Delete(const WriteOptions& options, ColumnFamilyHandle* column_family,
                 const Slice& key) override;

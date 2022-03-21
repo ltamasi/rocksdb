@@ -66,10 +66,7 @@ TEST_F(DBBasicTest, WideColumns) {
   }
 
   WideColumnDescs delta_descs{{"col2", "new_val2"}, {"col5", "val5"}};
-  std::string delta;
-  ASSERT_OK(WideColumnSerialization::Serialize(delta_descs, &delta));
-
-  ASSERT_OK(db_->Merge(WriteOptions(), "key", delta));
+  ASSERT_OK(db_->Merge(WriteOptions(), "key", delta_descs));
 
   {
     WideColumnSlices columns;
