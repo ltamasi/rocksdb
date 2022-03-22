@@ -95,6 +95,18 @@ TEST_F(DBBasicTest, WideColumns) {
     ASSERT_OK(db_->Get(ReadOptions(), "key", "col5", &column));
     ASSERT_EQ(column.column_desc, WideColumnDesc("col5", "val5"));
   }
+
+  WideColumnNames del_columns{"col1", "col5"};
+  ASSERT_OK(db_->Delete(WriteOptions(), "key", del_columns));
+
+  {
+    WideColumnSlices columns;
+    ASSERT_OK(db_->Get(ReadOptions(), "key", &columns));
+
+    WideColumnDescs expected_descs{
+        {"col1", ""}, {"col2", "new_val2"}, {"col3", "val3"}, {"col5", ""}};
+    ASSERT_EQ(columns.column_descs, expected_descs);
+  }
 }
 
 TEST_F(DBBasicTest, OpenWhenOpen) {
