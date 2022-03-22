@@ -382,6 +382,13 @@ class DB {
     return Put(options, DefaultColumnFamily(), key, ts, value);
   }
 
+  // Wide Columns
+  // TODO: column family and timestamp support
+  // TODO: other APIs like Merge (!), MultiGet, iterator,
+  // DeleteRange/SingleDelete
+  // TODO: WriteBatch
+  // TODO: support deep nesting?
+
   virtual Status PutEntity(const WriteOptions& /* options */,
                            const Slice& /* key */,
                            const WideColumnDescs& /* column_descs */) {
@@ -570,6 +577,7 @@ class DB {
     return Status::NotSupported();
   }
 
+  // TODO: consider exposing per-column Status (MultiGet-style)
   virtual Status GetColumns(const ReadOptions& /* options */,
                             const Slice& /* key */,
                             const WideColumnNames& /* column_names */,

@@ -117,6 +117,7 @@ Status DBImpl::DeleteColumns(const WriteOptions& o, const Slice& key,
   column_descs.reserve(column_names.size());
 
   for (const auto& column_name : column_names) {
+    // TODO: support proper column tombstones instead of using empty Slices
     column_descs.emplace_back(column_name, Slice());
   }
 

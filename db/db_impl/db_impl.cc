@@ -1761,6 +1761,7 @@ Status DBImpl::GetColumns(const ReadOptions& read_options, const Slice& key,
     }
   }
 
+  // TODO: this could be optimized/pushed down to WideColumnSerialization
   for (const auto& column_name : column_names) {
     Slice input(columns->buf);
     columns->column_descs.emplace_back();

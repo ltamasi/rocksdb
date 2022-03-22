@@ -17,8 +17,14 @@ namespace ROCKSDB_NAMESPACE {
 
 Status WideColumnSerialization::Serialize(const WideColumnDescs& column_descs,
                                           std::string* output) {
+  assert(
+      std::is_sorted(column_descs.cbegin(), column_descs.cend(),
+                     [](const WideColumnDesc& lhs, const WideColumnDesc& rhs) {
+                       return lhs.first.compare(rhs.first) < 0;
+                     }));
   assert(output);
 
+  // TODO: optimize
   PutFixed16(output, column_descs.size());
 
   uint32_t pos = sizeof(uint16_t) + column_descs.size() * 3 * sizeof(uint32_t);
@@ -108,6 +114,15 @@ Status WideColumnSerialization::DeserializeIndex(
     Slice column_value(orig_input.data() + pos + name_size, value_size);
 
     column_descs->emplace_back(column_name, column_value);
+  }
+
+  // TODO: further validation possible
+
+  if (!std::is_sorted(column_descs->cbegin(), column_descs->cend(),
+                      [](const WideColumnDesc& lhs, const WideColumnDesc& rhs) {
+                        return lhs.first.compare(rhs.first) < 0;
+                      })) {
+    return Status::Corruption("Columns not sorted properly");
   }
 
   return Status::OK();
