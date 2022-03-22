@@ -44,33 +44,33 @@ TEST_F(DBBasicTest, WideColumns) {
   WideColumnDescs orig_descs{
       {"col1", "val1"}, {"col2", "val2"}, {"col3", "val3"}};
 
-  ASSERT_OK(db_->Put(WriteOptions(), "key", orig_descs));
-
-  Flush();
+  ASSERT_OK(db_->PutEntity(WriteOptions(), "key", orig_descs));
 
   {
     WideColumnSlices columns;
-    ASSERT_OK(db_->Get(ReadOptions(), "key", &columns));
+    ASSERT_OK(db_->GetEntity(ReadOptions(), "key", &columns));
     ASSERT_EQ(columns.column_descs, orig_descs);
   }
 
   {
-    WideColumnSlice column;
-    ASSERT_OK(db_->Get(ReadOptions(), "key", "col2", &column));
-    ASSERT_EQ(column.column_desc, WideColumnDesc("col2", "val2"));
-  }
+    WideColumnSlices columns;
+    ASSERT_OK(db_->GetColumns(ReadOptions(), "key", {"col2"}, &columns));
 
-  {
-    WideColumnSlice column;
-    ASSERT_NOK(db_->Get(ReadOptions(), "key", "col4", &column));
+    WideColumnDescs expected_descs{{"col2", "val2"}};
+    ASSERT_EQ(columns.column_descs, expected_descs);
   }
-
-  WideColumnDescs delta_descs{{"col2", "new_val2"}, {"col5", "val5"}};
-  ASSERT_OK(db_->Merge(WriteOptions(), "key", delta_descs));
 
   {
     WideColumnSlices columns;
-    ASSERT_OK(db_->Get(ReadOptions(), "key", &columns));
+    ASSERT_NOK(db_->GetColumns(ReadOptions(), "key", {"col4"}, &columns));
+  }
+
+  WideColumnDescs delta_descs{{"col2", "new_val2"}, {"col5", "val5"}};
+  ASSERT_OK(db_->PutColumns(WriteOptions(), "key", delta_descs));
+
+  {
+    WideColumnSlices columns;
+    ASSERT_OK(db_->GetEntity(ReadOptions(), "key", &columns));
 
     WideColumnDescs expected_descs{{"col1", "val1"},
                                    {"col2", "new_val2"},
@@ -80,28 +80,32 @@ TEST_F(DBBasicTest, WideColumns) {
   }
 
   {
-    WideColumnSlice column;
-    ASSERT_OK(db_->Get(ReadOptions(), "key", "col2", &column));
-    ASSERT_EQ(column.column_desc, WideColumnDesc("col2", "new_val2"));
-  }
+    WideColumnSlices columns;
+    ASSERT_OK(db_->GetColumns(ReadOptions(), "key", {"col2"}, &columns));
 
-  {
-    WideColumnSlice column;
-    ASSERT_NOK(db_->Get(ReadOptions(), "key", "col4", &column));
+    WideColumnDescs expected_descs{{"col2", "new_val2"}};
+    ASSERT_EQ(columns.column_descs, expected_descs);
   }
-
-  {
-    WideColumnSlice column;
-    ASSERT_OK(db_->Get(ReadOptions(), "key", "col5", &column));
-    ASSERT_EQ(column.column_desc, WideColumnDesc("col5", "val5"));
-  }
-
-  WideColumnNames del_columns{"col1", "col5"};
-  ASSERT_OK(db_->Delete(WriteOptions(), "key", del_columns));
 
   {
     WideColumnSlices columns;
-    ASSERT_OK(db_->Get(ReadOptions(), "key", &columns));
+    ASSERT_NOK(db_->GetColumns(ReadOptions(), "key", {"col4"}, &columns));
+  }
+
+  {
+    WideColumnSlices columns;
+    ASSERT_OK(db_->GetColumns(ReadOptions(), "key", {"col5"}, &columns));
+
+    WideColumnDescs expected_descs{{"col5", "val5"}};
+    ASSERT_EQ(columns.column_descs, expected_descs);
+  }
+
+  WideColumnNames del_columns{"col1", "col5"};
+  ASSERT_OK(db_->DeleteColumns(WriteOptions(), "key", del_columns));
+
+  {
+    WideColumnSlices columns;
+    ASSERT_OK(db_->GetEntity(ReadOptions(), "key", &columns));
 
     WideColumnDescs expected_descs{
         {"col1", ""}, {"col2", "new_val2"}, {"col3", "val3"}, {"col5", ""}};

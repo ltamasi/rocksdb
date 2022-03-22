@@ -1733,8 +1733,8 @@ Status DBImpl::Get(const ReadOptions& read_options,
   return s;
 }
 
-Status DBImpl::Get(const ReadOptions& read_options, const Slice& key,
-                   WideColumnSlices* columns) {
+Status DBImpl::GetEntity(const ReadOptions& read_options, const Slice& key,
+                         WideColumnSlices* columns) {
   assert(columns);
 
   const Status s = Get(read_options, DefaultColumnFamily(), key, &columns->buf);
@@ -1748,19 +1748,31 @@ Status DBImpl::Get(const ReadOptions& read_options, const Slice& key,
                                                  &columns->column_descs);
 }
 
-Status DBImpl::Get(const ReadOptions& read_options, const Slice& key,
-                   const Slice& column_name, WideColumnSlice* column) {
-  assert(column);
+Status DBImpl::GetColumns(const ReadOptions& read_options, const Slice& key,
+                          const WideColumnNames& column_names,
+                          WideColumnSlices* columns) {
+  assert(columns);
 
-  const Status s = Get(read_options, DefaultColumnFamily(), key, &column->buf);
-  if (!s.ok()) {
-    return s;
+  {
+    const Status s =
+        Get(read_options, DefaultColumnFamily(), key, &columns->buf);
+    if (!s.ok()) {
+      return s;
+    }
   }
 
-  Slice input(column->buf);
+  for (const auto& column_name : column_names) {
+    Slice input(columns->buf);
+    columns->column_descs.emplace_back();
 
-  return WideColumnSerialization::DeserializeOne(&input, column_name,
-                                                 &column->column_desc);
+    const Status s = WideColumnSerialization::DeserializeOne(
+        &input, column_name, &columns->column_descs.back());
+    if (!s.ok()) {
+      return s;
+    }
+  }
+
+  return Status::OK();
 }
 
 namespace {

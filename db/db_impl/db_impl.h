@@ -154,15 +154,14 @@ class DBImpl : public DB {
   Status Put(const WriteOptions& options, ColumnFamilyHandle* column_family,
              const Slice& key, const Slice& ts, const Slice& value) override;
 
-  Status Put(const WriteOptions& options, const Slice& key,
-             const WideColumnDescs& column_descs) override;
+  Status PutEntity(const WriteOptions& options, const Slice& key,
+                   const WideColumnDescs& column_descs) override;
+  Status PutColumns(const WriteOptions& options, const Slice& key,
+                    const WideColumnDescs& column_descs) override;
 
   using DB::Merge;
   Status Merge(const WriteOptions& options, ColumnFamilyHandle* column_family,
                const Slice& key, const Slice& value) override;
-
-  Status Merge(const WriteOptions& options, const Slice& key,
-               const WideColumnDescs& column_descs) override;
 
   using DB::Delete;
   Status Delete(const WriteOptions& options, ColumnFamilyHandle* column_family,
@@ -170,8 +169,9 @@ class DBImpl : public DB {
   Status Delete(const WriteOptions& options, ColumnFamilyHandle* column_family,
                 const Slice& key, const Slice& ts) override;
 
-  Status Delete(const WriteOptions& options, const Slice& key,
-                const WideColumnNames& column_names) override;
+  Status DeleteEntity(const WriteOptions& options, const Slice& key) override;
+  Status DeleteColumns(const WriteOptions& options, const Slice& key,
+                       const WideColumnNames& column_names) override;
 
   using DB::SingleDelete;
   Status SingleDelete(const WriteOptions& options,
@@ -198,11 +198,11 @@ class DBImpl : public DB {
                      ColumnFamilyHandle* column_family, const Slice& key,
                      PinnableSlice* value, std::string* timestamp) override;
 
-  virtual Status Get(const ReadOptions& options, const Slice& key,
-                     WideColumnSlices* column_descs) override;
-  virtual Status Get(const ReadOptions& options, const Slice& key,
-                     const Slice& column_name,
-                     WideColumnSlice* column_desc) override;
+  virtual Status GetEntity(const ReadOptions& options, const Slice& key,
+                           WideColumnSlices* column_descs) override;
+  virtual Status GetColumns(const ReadOptions& options, const Slice& key,
+                            const WideColumnNames& column_names,
+                            WideColumnSlices* column_descs) override;
 
   using DB::GetMergeOperands;
   Status GetMergeOperands(const ReadOptions& options,

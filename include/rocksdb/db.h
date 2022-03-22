@@ -382,8 +382,15 @@ class DB {
     return Put(options, DefaultColumnFamily(), key, ts, value);
   }
 
-  virtual Status Put(const WriteOptions& /* options */, const Slice& /* key */,
-                     const WideColumnDescs& /* column_descs */) {
+  virtual Status PutEntity(const WriteOptions& /* options */,
+                           const Slice& /* key */,
+                           const WideColumnDescs& /* column_descs */) {
+    return Status::NotSupported();
+  }
+
+  virtual Status PutColumns(const WriteOptions& /* options */,
+                            const Slice& /* key */,
+                            const WideColumnDescs& /* column_descs */) {
     return Status::NotSupported();
   }
 
@@ -405,9 +412,14 @@ class DB {
     return Delete(options, DefaultColumnFamily(), key, ts);
   }
 
-  virtual Status Delete(const WriteOptions& /* options */,
-                        const Slice& /* key */,
-                        const WideColumnNames& /* column_names */) {
+  virtual Status DeleteEntity(const WriteOptions& /* options */,
+                              const Slice& /* key */) {
+    return Status::NotSupported();
+  }
+
+  virtual Status DeleteColumns(const WriteOptions& /* options */,
+                               const Slice& /* key */,
+                               const WideColumnNames& /* column_names */) {
     return Status::NotSupported();
   }
 
@@ -489,12 +501,6 @@ class DB {
         "Merge does not support user-defined timestamp yet");
   }
 
-  virtual Status Merge(const WriteOptions& /* options */,
-                       const Slice& /* key */,
-                       const WideColumnDescs& /* column_descs */) {
-    return Status::NotSupported();
-  }
-
   // Apply the specified updates to the database.
   // If `updates` contains no update, WAL will still be synced if
   // options.sync=true.
@@ -558,16 +564,16 @@ class DB {
     return Get(options, DefaultColumnFamily(), key, value, timestamp);
   }
 
-  // Get entity
-  virtual Status Get(const ReadOptions& /* options */, const Slice& /* key */,
-                     WideColumnSlices* /* columns */) {
+  virtual Status GetEntity(const ReadOptions& /* options */,
+                           const Slice& /* key */,
+                           WideColumnSlices* /* columns */) {
     return Status::NotSupported();
   }
 
-  // Get attribute
-  virtual Status Get(const ReadOptions& /* options */, const Slice& /* key */,
-                     const Slice& /* column_name */,
-                     WideColumnSlice* /* column */) {
+  virtual Status GetColumns(const ReadOptions& /* options */,
+                            const Slice& /* key */,
+                            const WideColumnNames& /* column_names */,
+                            WideColumnSlices* /* columns */) {
     return Status::NotSupported();
   }
 

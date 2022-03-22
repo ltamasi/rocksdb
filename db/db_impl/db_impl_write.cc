@@ -38,8 +38,8 @@ Status DBImpl::Put(const WriteOptions& o, ColumnFamilyHandle* column_family,
   return DB::Put(o, column_family, key, ts, val);
 }
 
-Status DBImpl::Put(const WriteOptions& o, const Slice& key,
-                   const WideColumnDescs& column_descs) {
+Status DBImpl::PutEntity(const WriteOptions& o, const Slice& key,
+                         const WideColumnDescs& column_descs) {
   WideColumnDescs copy(column_descs);
   std::sort(copy.begin(), copy.end(),
             [](const WideColumnDesc& lhs, const WideColumnDesc& rhs) {
@@ -56,22 +56,8 @@ Status DBImpl::Put(const WriteOptions& o, const Slice& key,
   return DB::Put(o, key, value);
 }
 
-Status DBImpl::Merge(const WriteOptions& o, ColumnFamilyHandle* column_family,
-                     const Slice& key, const Slice& val) {
-  const Status s = FailIfCfHasTs(column_family);
-  if (!s.ok()) {
-    return s;
-  }
-  auto cfh = static_cast_with_check<ColumnFamilyHandleImpl>(column_family);
-  if (!cfh->cfd()->ioptions()->merge_operator) {
-    return Status::NotSupported("Provide a merge_operator when opening DB");
-  } else {
-    return DB::Merge(o, column_family, key, val);
-  }
-}
-
-Status DBImpl::Merge(const WriteOptions& o, const Slice& key,
-                     const WideColumnDescs& column_descs) {
+Status DBImpl::PutColumns(const WriteOptions& o, const Slice& key,
+                          const WideColumnDescs& column_descs) {
   WideColumnDescs copy(column_descs);
   std::sort(copy.begin(), copy.end(),
             [](const WideColumnDesc& lhs, const WideColumnDesc& rhs) {
@@ -86,6 +72,20 @@ Status DBImpl::Merge(const WriteOptions& o, const Slice& key,
   }
 
   return DB::Merge(o, DefaultColumnFamily(), key, value);
+}
+
+Status DBImpl::Merge(const WriteOptions& o, ColumnFamilyHandle* column_family,
+                     const Slice& key, const Slice& val) {
+  const Status s = FailIfCfHasTs(column_family);
+  if (!s.ok()) {
+    return s;
+  }
+  auto cfh = static_cast_with_check<ColumnFamilyHandleImpl>(column_family);
+  if (!cfh->cfd()->ioptions()->merge_operator) {
+    return Status::NotSupported("Provide a merge_operator when opening DB");
+  } else {
+    return DB::Merge(o, column_family, key, val);
+  }
 }
 
 Status DBImpl::Delete(const WriteOptions& write_options,
@@ -107,8 +107,12 @@ Status DBImpl::Delete(const WriteOptions& write_options,
   return DB::Delete(write_options, column_family, key, ts);
 }
 
-Status DBImpl::Delete(const WriteOptions& o, const Slice& key,
-                      const WideColumnNames& column_names) {
+Status DBImpl::DeleteEntity(const WriteOptions& o, const Slice& key) {
+  return DB::Delete(o, key);
+}
+
+Status DBImpl::DeleteColumns(const WriteOptions& o, const Slice& key,
+                             const WideColumnNames& column_names) {
   WideColumnDescs column_descs;
   column_descs.reserve(column_names.size());
 
