@@ -387,6 +387,7 @@ class DB {
   // TODO: other APIs like Merge (!), MultiGet, iterator,
   // DeleteRange/SingleDelete
   // TODO: WriteBatch
+  // TODO: support splitting entities among multiple column families
   // TODO: support deep nesting?
 
   virtual Status PutEntity(const WriteOptions& /* options */,
