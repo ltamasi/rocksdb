@@ -65,6 +65,9 @@ enum EntryType {
 };
 
 // Wide columns
+using WideColumnName = Slice;
+using WideColumnNames = std::vector<WideColumnName>;
+
 using WideColumnDesc = std::pair<Slice, Slice>;
 using WideColumnDescs = std::vector<WideColumnDesc>;
 

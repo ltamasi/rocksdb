@@ -405,6 +405,12 @@ class DB {
     return Delete(options, DefaultColumnFamily(), key, ts);
   }
 
+  virtual Status Delete(const WriteOptions& /* options */,
+                        const Slice& /* key */,
+                        const WideColumnNames& /* column_names */) {
+    return Status::NotSupported();
+  }
+
   // Remove the database entry for "key". Requires that the key exists
   // and was not overwritten. Returns OK on success, and a non-OK status
   // on error.  It is not an error if "key" did not exist in the database.

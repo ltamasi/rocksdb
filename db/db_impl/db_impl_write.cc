@@ -107,6 +107,30 @@ Status DBImpl::Delete(const WriteOptions& write_options,
   return DB::Delete(write_options, column_family, key, ts);
 }
 
+Status DBImpl::Delete(const WriteOptions& o, const Slice& key,
+                      const WideColumnNames& column_names) {
+  WideColumnDescs column_descs;
+  column_descs.reserve(column_names.size());
+
+  for (const auto& column_name : column_names) {
+    column_descs.emplace_back(column_name, Slice());
+  }
+
+  std::sort(column_descs.begin(), column_descs.end(),
+            [](const WideColumnDesc& lhs, const WideColumnDesc& rhs) {
+              return lhs.first.compare(rhs.first) < 0;
+            });
+
+  std::string value;
+
+  const Status s = WideColumnSerialization::Serialize(column_descs, &value);
+  if (!s.ok()) {
+    return s;
+  }
+
+  return DB::Merge(o, DefaultColumnFamily(), key, value);
+}
+
 Status DBImpl::SingleDelete(const WriteOptions& write_options,
                             ColumnFamilyHandle* column_family,
                             const Slice& key) {

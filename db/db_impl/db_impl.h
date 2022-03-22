@@ -170,6 +170,9 @@ class DBImpl : public DB {
   Status Delete(const WriteOptions& options, ColumnFamilyHandle* column_family,
                 const Slice& key, const Slice& ts) override;
 
+  Status Delete(const WriteOptions& options, const Slice& key,
+                const WideColumnNames& column_names) override;
+
   using DB::SingleDelete;
   Status SingleDelete(const WriteOptions& options,
                       ColumnFamilyHandle* column_family,
