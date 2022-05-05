@@ -807,6 +807,77 @@ TEST_F(DBBasicTestWithTimestamp, GetTimestampTableProperties) {
 }
 #endif  // !ROCKSDB_LITE
 
+TEST_F(DBBasicTestWithTimestamp, GetAndMultiGetBlob) {
+  Options options = GetDefaultOptions();
+  options.create_if_missing = true;
+  options.enable_blob_files = true;
+
+  const std::string ts = Timestamp(1, 0);
+
+  TestComparator cmp(ts.size());
+  options.comparator = &cmp;
+
+  DestroyAndReopen(options);
+
+  constexpr char key1[] = "foo";
+  constexpr char value1[] = "bar";
+
+  ASSERT_OK(db_->Put(WriteOptions(), key1, ts, value1));
+
+  constexpr char key2[] = "hello";
+  constexpr char value2[] = "world";
+
+  ASSERT_OK(db_->Put(WriteOptions(), key2, ts, value2));
+
+  ASSERT_OK(Flush());
+
+  ReadOptions read_options;
+  const std::string read_ts = Timestamp(1000, 0);
+  Slice read_ts_slice(read_ts);
+  read_options.timestamp = &read_ts_slice;
+
+  {
+    PinnableSlice value;
+    std::string timestamp;
+    ASSERT_OK(db_->Get(read_options, db_->DefaultColumnFamily(), key1, &value,
+                       &timestamp));
+    ASSERT_EQ(value, value1);
+    ASSERT_EQ(timestamp, ts);
+  }
+
+  {
+    PinnableSlice value;
+    std::string timestamp;
+    ASSERT_OK(db_->Get(read_options, db_->DefaultColumnFamily(), key2, &value,
+                       &timestamp));
+    ASSERT_EQ(value, value2);
+    ASSERT_EQ(timestamp, ts);
+  }
+
+  {
+    constexpr size_t num_keys = 2;
+    std::array<ColumnFamilyHandle*, num_keys> cfs{
+        {db_->DefaultColumnFamily(), db_->DefaultColumnFamily()}};
+    std::array<Slice, num_keys> keys{{key1, key2}};
+    std::array<PinnableSlice, num_keys> values;
+    std::array<std::string, num_keys> timestamps;
+    std::array<Status, num_keys> statuses;
+
+    db_->MultiGet(read_options, num_keys, cfs.data(), keys.data(),
+                  values.data(), timestamps.data(), statuses.data());
+
+    ASSERT_OK(statuses[0]);
+    ASSERT_EQ(values[0], value1);
+    ASSERT_EQ(timestamps[0], ts);
+
+    ASSERT_OK(statuses[1]);
+    ASSERT_EQ(values[1], value2);
+    ASSERT_EQ(timestamps[1], ts);
+  }
+
+  Close();
+}
+
 class DBBasicTestWithTimestampTableOptions
     : public DBBasicTestWithTimestampBase,
       public testing::WithParamInterface<BlockBasedTableOptions::IndexType> {
