@@ -836,6 +836,20 @@ TEST_F(DBBasicTestWithTimestamp, GetAndMultiGetBlob) {
   Slice read_ts_slice(read_ts);
   read_options.timestamp = &read_ts_slice;
 
+  // Get without output timestamp
+  {
+    PinnableSlice value;
+    ASSERT_OK(db_->Get(read_options, db_->DefaultColumnFamily(), key1, &value));
+    ASSERT_EQ(value, value1);
+  }
+
+  {
+    PinnableSlice value;
+    ASSERT_OK(db_->Get(read_options, db_->DefaultColumnFamily(), key2, &value));
+    ASSERT_EQ(value, value2);
+  }
+
+  // Get with output timestamp
   {
     PinnableSlice value;
     std::string timestamp;
