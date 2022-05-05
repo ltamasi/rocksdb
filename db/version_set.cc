@@ -1991,13 +1991,24 @@ void Version::Get(const ReadOptions& read_options, const LookupKey& k,
   // need to provide it here.
   bool is_blob_index = false;
   bool* const is_blob_to_use = is_blob ? is_blob : &is_blob_index;
+
+  // We need the timestamp (if any) for BlobDB's sanity checks even if the
+  // application doesn't
+  std::string ts;
+
+  assert(user_comparator());
+  const size_t ts_sz = user_comparator()->timestamp_size();
+
+  std::string* const ts_to_use =
+      ts_sz > 0 ? (timestamp ? timestamp : &ts) : nullptr;
+
   BlobFetcher blob_fetcher(this, read_options);
 
   assert(pinned_iters_mgr);
   GetContext get_context(
       user_comparator(), merge_operator_, info_log_, db_statistics_,
       status->ok() ? GetContext::kNotFound : GetContext::kMerge, user_key,
-      do_merge ? value : nullptr, do_merge ? timestamp : nullptr, value_found,
+      do_merge ? value : nullptr, do_merge ? ts_to_use : nullptr, value_found,
       merge_context, do_merge, max_covering_tombstone_seq, clock_, seq,
       merge_operator_ ? pinned_iters_mgr : nullptr, callback, is_blob_to_use,
       tracing_get_id, &blob_fetcher);
@@ -2076,11 +2087,24 @@ void Version::Get(const ReadOptions& read_options, const LookupKey& k,
             TEST_SYNC_POINT_CALLBACK("Version::Get::TamperWithBlobIndex",
                                      value);
 
+            Slice ukey_with_ts(user_key);
+            std::string ukey_with_ts_buf;
+
+            if (ts_sz > 0) {
+              assert(ts_to_use);
+              assert(ts_to_use->size() == ts_sz);
+
+              std::array<Slice, 2> ukey_with_ts_array{
+                  {StripTimestampFromUserKey(user_key, ts_sz), *ts_to_use}};
+              ukey_with_ts = Slice(SliceParts(ukey_with_ts_array.data(), 2),
+                                   &ukey_with_ts_buf);
+            }
+
             constexpr FilePrefetchBuffer* prefetch_buffer = nullptr;
             constexpr uint64_t* bytes_read = nullptr;
 
-            *status = GetBlob(read_options, user_key, *value, prefetch_buffer,
-                              value, bytes_read);
+            *status = GetBlob(read_options, ukey_with_ts, *value,
+                              prefetch_buffer, value, bytes_read);
             if (!status->ok()) {
               if (status->IsIncomplete()) {
                 get_context.MarkKeyMayExist();
