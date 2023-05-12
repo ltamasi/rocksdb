@@ -50,6 +50,9 @@ class BaseDeltaIterator : public Iterator {
   void Prev() override;
   Slice key() const override;
   Slice value() const override;
+  const WideColumns& columns() const override {
+    return kNoWideColumns;
+  }  // TODO
   Status status() const override;
   void Invalidate(Status s);
 
@@ -322,12 +325,26 @@ class WriteBatchWithIndexInternal {
                                         const Slice& key,
                                         MergeContext* merge_context,
                                         std::string* value, Status* s);
+
+  WBWIIteratorImpl::Result GetEntityFromBatch(WriteBatchWithIndex* batch,
+                                              const Slice& key,
+                                              PinnableWideColumns* columns,
+                                              Status* s) {
+    return GetEntityFromBatch(batch, key, &merge_context_, columns, s);
+  }
+  WBWIIteratorImpl::Result GetEntityFromBatch(WriteBatchWithIndex* batch,
+                                              const Slice& key,
+                                              MergeContext* merge_context,
+                                              PinnableWideColumns* columns,
+                                              Status* s);
+
   Status MergeKey(const Slice& key, const Slice* value,
                   std::string* result) const {
     return MergeKey(key, value, merge_context_, result);
   }
   Status MergeKey(const Slice& key, const Slice* value,
                   const MergeContext& context, std::string* result) const;
+
   size_t GetNumOperands() const { return merge_context_.GetNumOperands(); }
   MergeContext* GetMergeContext() { return &merge_context_; }
   Slice GetOperand(int index) const { return merge_context_.GetOperand(index); }

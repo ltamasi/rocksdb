@@ -162,6 +162,8 @@ Slice BaseDeltaIterator::value() const {
     } else if (delta_entry.type == kPutRecord) {
       status_ = wbwii_->MergeKey(delta_entry.key, &delta_entry.value,
                                  merge_result_.GetSelf());
+    } else if (delta_entry.type == kPutEntityRecord) {
+      // TODO
     } else if (delta_entry.type == kMergeRecord) {
       if (equal_keys_) {
         Slice base_value = base_iterator_->value();
@@ -422,6 +424,7 @@ WBWIIteratorImpl::Result WBWIIteratorImpl::FindLatestUpdate(
 
       switch (entry.type) {
         case kPutRecord:
+        case kPutEntityRecord:
           return WBWIIteratorImpl::kFound;
         case kDeleteRecord:
           return WBWIIteratorImpl::kDeleted;
@@ -510,6 +513,10 @@ Status ReadableWriteBatch::GetEntryFromDataOffset(size_t data_offset,
     case kTypeCommitXID:
     case kTypeRollbackXID:
       *type = kXIDRecord;
+      break;
+    case kTypeColumnFamilyWideColumnEntity:
+    case kTypeWideColumnEntity:
+      *type = kPutEntityRecord;
       break;
     default:
       return Status::Corruption("unknown WriteBatch tag ",
@@ -607,12 +614,13 @@ WriteEntry WBWIIteratorImpl::Entry() const {
   // this is guaranteed with Valid()
   assert(iter_entry != nullptr &&
          iter_entry->column_family == column_family_id_);
-  auto s = write_batch_->GetEntryFromDataOffset(
-      iter_entry->offset, &ret.type, &ret.key, &ret.value, &blob, &xid);
+  auto s = write_batch_->GetEntryFromDataOffset(iter_entry->offset, &ret.type,
+                                                &ret.key, &ret.value, &blob,
+                                                &xid);  // TODO ret.columns
   assert(s.ok());
   assert(ret.type == kPutRecord || ret.type == kDeleteRecord ||
          ret.type == kSingleDeleteRecord || ret.type == kDeleteRangeRecord ||
-         ret.type == kMergeRecord);
+         ret.type == kMergeRecord || ret.type == kPutEntityRecord);
   // Make sure entry.key does not include user-defined timestamp.
   const Comparator* const ucmp = comparator_->GetComparator(column_family_id_);
   size_t ts_sz = ucmp->timestamp_size();
@@ -738,5 +746,16 @@ WBWIIteratorImpl::Result WriteBatchWithIndexInternal::GetFromBatch(
   return result;
 }
 
-}  // namespace ROCKSDB_NAMESPACE
+WBWIIteratorImpl::Result WriteBatchWithIndexInternal::GetEntityFromBatch(
+    WriteBatchWithIndex* batch, const Slice& key, MergeContext* context,
+    PinnableWideColumns* columns, Status* s) {
+  (void)batch;
+  (void)key;
+  (void)context;
+  (void)columns;
+  (void)s;
 
+  return WBWIIteratorImpl::kFound;
+}
+
+}  // namespace ROCKSDB_NAMESPACE

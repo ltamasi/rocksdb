@@ -39,15 +39,17 @@ enum WriteType {
   kDeleteRangeRecord,
   kLogDataRecord,
   kXIDRecord,
+  kPutEntityRecord,
   kUnknownRecord,
 };
 
-// an entry for Put, Merge, Delete, or SingleDelete entry for write batches.
-// Used in WBWIIterator.
+// an entry for Put, Merge, Delete, SingleDelete, or PutEntity entry for write
+// batches. Used in WBWIIterator.
 struct WriteEntry {
   WriteType type = kUnknownRecord;
   Slice key;
   Slice value;
+  WideColumns columns;
 };
 
 // Iterator of one column family out of a WriteBatchWithIndex.
@@ -78,11 +80,11 @@ class WBWIIterator {
 
 // A WriteBatchWithIndex with a binary searchable index built for all the keys
 // inserted.
-// In Put(), Merge() Delete(), or SingleDelete(), the same function of the
-// wrapped will be called. At the same time, indexes will be built.
-// By calling GetWriteBatch(), a user will get the WriteBatch for the data
-// they inserted, which can be used for DB::Write().
-// A user can call NewIterator() to create an iterator.
+// In Put(), Merge(), Delete(), SingleDelete(), or PutEntity(), the same
+// function of the wrapped will be called. At the same time, indexes will be
+// built. By calling GetWriteBatch(), a user will get the WriteBatch for the
+// data they inserted, which can be used for DB::Write(). A user can call
+// NewIterator() to create an iterator.
 class WriteBatchWithIndex : public WriteBatchBase {
  public:
   // backup_index_comparator: the backup comparator used to compare keys
@@ -112,16 +114,8 @@ class WriteBatchWithIndex : public WriteBatchBase {
   Status Put(ColumnFamilyHandle* column_family, const Slice& key,
              const Slice& ts, const Slice& value) override;
 
-  Status PutEntity(ColumnFamilyHandle* column_family, const Slice& /* key */,
-                   const WideColumns& /* columns */) override {
-    if (!column_family) {
-      return Status::InvalidArgument(
-          "Cannot call this method without a column family handle");
-    }
-
-    return Status::NotSupported(
-        "PutEntity not supported by WriteBatchWithIndex");
-  }
+  Status PutEntity(ColumnFamilyHandle* column_family, const Slice& key,
+                   const WideColumns& columns) override;
 
   using WriteBatchBase::Merge;
   Status Merge(ColumnFamilyHandle* column_family, const Slice& key,
@@ -254,15 +248,52 @@ class WriteBatchWithIndex : public WriteBatchBase {
                               PinnableSlice* values, Status* statuses,
                               bool sorted_input);
 
+  // Similar to DB::GetEntity() but will only read the key from this batch.
+  // If the batch does not have enough data to resolve Merge operations,
+  // MergeInProgress status may be returned.
+  Status GetEntityFromBatch(ColumnFamilyHandle* column_family,
+                            const DBOptions& options, const Slice& key,
+                            PinnableWideColumns* columns);
+
+  // Similar to DB::GetEntity() but will also read writes from this batch.
+  //
+  // This function will query both this batch and the DB and then merge
+  // the results using the merge operator (if the batch contains any
+  // merge operations).
+  //
+  // Setting read_options.snapshot will affect what is read from the DB
+  // but will NOT change which keys are read from the batch (the keys in
+  // this batch do not yet belong to any snapshot and will be fetched
+  // regardless).
+  Status GetEntityFromBatchAndDB(DB* db, const ReadOptions& read_options,
+                                 ColumnFamilyHandle* column_family,
+                                 const Slice& key,
+                                 PinnableWideColumns* columns);
+
+  // Similar to DB::MultiGetEntity() but will also read writes from this batch.
+  //
+  // This function will query both this batch and the DB and then merge
+  // the results using the merge operator (if the batch contains any
+  // merge operations).
+  //
+  // Setting read_options.snapshot will affect what is read from the DB
+  // but will NOT change which keys are read from the batch (the keys in
+  // this batch do not yet belong to any snapshot and will be fetched
+  // regardless).
+  void MultiGetEntityFromBatchAndDB(DB* db, const ReadOptions& read_options,
+                                    ColumnFamilyHandle* column_family,
+                                    size_t num_keys, const Slice* keys,
+                                    PinnableWideColumns* columns,
+                                    Status* statuses, bool sorted_input);
+
   // Records the state of the batch for future calls to RollbackToSavePoint().
   // May be called multiple times to set multiple save points.
   void SetSavePoint() override;
 
   // Remove all entries in this batch (Put, Merge, Delete, SingleDelete,
-  // PutLogData) since the most recent call to SetSavePoint() and removes the
-  // most recent save point.
-  // If there is no previous call to SetSavePoint(), behaves the same as
-  // Clear().
+  // PutEntity, PutLogData) since the most recent call to SetSavePoint() and
+  // removes the most recent save point. If there is no previous call to
+  // SetSavePoint(), behaves the same as Clear().
   //
   // Calling RollbackToSavePoint invalidates any open iterators on this batch.
   //
@@ -299,9 +330,20 @@ class WriteBatchWithIndex : public WriteBatchBase {
                               const size_t num_keys, const Slice* keys,
                               PinnableSlice* values, Status* statuses,
                               bool sorted_input, ReadCallback* callback);
+
+  Status GetEntityFromBatchAndDB(DB* db, const ReadOptions& read_options,
+                                 ColumnFamilyHandle* column_family,
+                                 const Slice& key, PinnableWideColumns* columns,
+                                 ReadCallback* callback);
+  void MultiGetEntityFromBatchAndDB(DB* db, const ReadOptions& read_options,
+                                    ColumnFamilyHandle* column_family,
+                                    size_t num_keys, const Slice* keys,
+                                    PinnableWideColumns* columns,
+                                    Status* statuses, bool sorted_input,
+                                    ReadCallback* callback);
+
   struct Rep;
   std::unique_ptr<Rep> rep;
 };
 
 }  // namespace ROCKSDB_NAMESPACE
-

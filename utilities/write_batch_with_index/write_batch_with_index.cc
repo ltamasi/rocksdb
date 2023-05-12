@@ -243,6 +243,14 @@ Status WriteBatchWithIndex::Rep::ReBuildIndex() {
           AddNewEntry(column_family_id);
         }
         break;
+      case kTypeColumnFamilyWideColumnEntity:
+      case kTypeWideColumnEntity:
+        ++found;
+        if (!UpdateExistingEntryWithCfId(column_family_id, key,
+                                         kPutEntityRecord)) {
+          AddNewEntry(column_family_id);
+        }
+        break;
       case kTypeLogData:
       case kTypeBeginPrepareXID:
       case kTypeBeginPersistedPrepareXID:
@@ -342,6 +350,24 @@ Status WriteBatchWithIndex::Put(ColumnFamilyHandle* column_family,
   }
   // TODO: support WBWI::Put() with timestamp.
   return Status::NotSupported();
+}
+
+Status WriteBatchWithIndex::PutEntity(ColumnFamilyHandle* column_family,
+                                      const Slice& key,
+                                      const WideColumns& columns) {
+  if (!column_family) {
+    return Status::InvalidArgument(
+        "Cannot call this method without a column family handle");
+  }
+
+  rep->SetLastEntryOffset();
+
+  const Status s = rep->write_batch.PutEntity(column_family, key, columns);
+  if (s.ok()) {
+    rep->AddOrUpdateIndex(column_family, key, kPutEntityRecord);
+  }
+
+  return s;
 }
 
 Status WriteBatchWithIndex::Delete(ColumnFamilyHandle* column_family,
@@ -657,6 +683,138 @@ void WriteBatchWithIndex::MultiGetFromBatchAndDB(
       }
     }
   }
+}
+
+Status WriteBatchWithIndex::GetEntityFromBatch(
+    ColumnFamilyHandle* column_family, const DBOptions& options,
+    const Slice& key, PinnableWideColumns* columns) {
+  if (!column_family) {
+    return Status::InvalidArgument(
+        "Cannot call GetEntityFromBatch without a column family handle");
+  }
+
+  if (!columns) {
+    return Status::InvalidArgument(
+        "Cannot call GetEntityFromBatch without a PinnableWideColumns object");
+  }
+
+  WriteBatchWithIndexInternal wbwii(&options, column_family);
+
+  Status s;
+  auto result = wbwii.GetEntityFromBatch(this, key, columns, &s);
+
+  assert(result == WBWIIteratorImpl::kFound ||
+         result == WBWIIteratorImpl::kNotFound ||
+         result == WBWIIteratorImpl::kDeleted ||
+         result == WBWIIteratorImpl::kMergeInProgress ||
+         result == WBWIIteratorImpl::kError);
+
+  if (result == WBWIIteratorImpl::kDeleted ||
+      result == WBWIIteratorImpl::kNotFound) {
+    return Status::NotFound();
+  }
+
+  if (result == WBWIIteratorImpl::kMergeInProgress) {
+    return Status::MergeInProgress();
+  }
+
+  return s;
+}
+
+Status WriteBatchWithIndex::GetEntityFromBatchAndDB(
+    DB* db, const ReadOptions& read_options, ColumnFamilyHandle* column_family,
+    const Slice& key, PinnableWideColumns* columns) {
+  constexpr ReadCallback* callback = nullptr;
+
+  return GetEntityFromBatchAndDB(db, read_options, column_family, key, columns,
+                                 callback);
+}
+
+Status WriteBatchWithIndex::GetEntityFromBatchAndDB(
+    DB* db, const ReadOptions& read_options, ColumnFamilyHandle* column_family,
+    const Slice& key, PinnableWideColumns* columns, ReadCallback* callback) {
+  if (!column_family) {
+    return Status::InvalidArgument(
+        "Cannot call GetEntityFromBatchAndDB without a column family handle");
+  }
+
+  if (!columns) {
+    return Status::InvalidArgument(
+        "Cannot call GetEntityFromBatchAndDB without a PinnableWideColumns "
+        "object");
+  }
+
+  const Comparator* const ucmp = rep->comparator.GetComparator(column_family);
+  size_t ts_sz = ucmp ? ucmp->timestamp_size() : 0;
+  if (ts_sz > 0 && !read_options.timestamp) {
+    return Status::InvalidArgument("Must specify timestamp");
+  }
+
+  WriteBatchWithIndexInternal wbwii(db, column_family);
+
+  // Since the lifetime of the WriteBatch is the same as that of the transaction
+  // we cannot pin it as otherwise the returned value will not be available
+  // after the transaction finishes.
+  Status s;
+  auto result = wbwii.GetEntityFromBatch(this, key, columns, &s);
+
+  if (result == WBWIIteratorImpl::kFound) {
+    return s;
+  }
+  if (!s.ok() || result == WBWIIteratorImpl::kError) {
+    return s;
+  }
+  if (result == WBWIIteratorImpl::kDeleted) {
+    return Status::NotFound();
+  }
+
+  assert(result == WBWIIteratorImpl::kMergeInProgress ||
+         result == WBWIIteratorImpl::kNotFound);
+
+  if (!callback) {
+    s = db->GetEntity(read_options, column_family, key, columns);
+  } else {
+    DBImpl::GetImplOptions get_impl_options;
+    get_impl_options.column_family = column_family;
+    get_impl_options.columns = columns;
+    get_impl_options.callback = callback;
+    s = static_cast_with_check<DBImpl>(db->GetRootDB())
+            ->GetImpl(read_options, key, get_impl_options);
+  }
+
+  if (s.ok() || s.IsNotFound()) {
+    if (result == WBWIIteratorImpl::kMergeInProgress) {
+      // TODO
+    }
+  }
+
+  return s;
+}
+
+void WriteBatchWithIndex::MultiGetEntityFromBatchAndDB(
+    DB* db, const ReadOptions& read_options, ColumnFamilyHandle* column_family,
+    size_t num_keys, const Slice* keys, PinnableWideColumns* columns,
+    Status* statuses, bool sorted_input) {
+  constexpr ReadCallback* callback = nullptr;
+
+  MultiGetEntityFromBatchAndDB(db, read_options, column_family, num_keys, keys,
+                               columns, statuses, sorted_input, callback);
+}
+
+void WriteBatchWithIndex::MultiGetEntityFromBatchAndDB(
+    DB* db, const ReadOptions& read_options, ColumnFamilyHandle* column_family,
+    size_t num_keys, const Slice* keys, PinnableWideColumns* columns,
+    Status* statuses, bool sorted_input, ReadCallback* callback) {
+  (void)db;
+  (void)read_options;
+  (void)column_family;
+  (void)num_keys;
+  (void)keys;
+  (void)columns;
+  (void)statuses;
+  (void)sorted_input;
+  (void)callback;
+  // TODO
 }
 
 void WriteBatchWithIndex::SetSavePoint() { rep->write_batch.SetSavePoint(); }
