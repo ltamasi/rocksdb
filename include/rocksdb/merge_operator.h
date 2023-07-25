@@ -12,6 +12,7 @@
 
 #include "rocksdb/customizable.h"
 #include "rocksdb/slice.h"
+#include "rocksdb/wide_columns.h"
 
 namespace ROCKSDB_NAMESPACE {
 
@@ -85,18 +86,24 @@ class MergeOperator : public Customizable {
     // If user-defined timestamp is enabled, `_key` includes timestamp.
     explicit MergeOperationInput(const Slice& _key,
                                  const Slice* _existing_value,
+                                 const WideColumns* _existing_columns,
                                  const std::vector<Slice>& _operand_list,
                                  Logger* _logger)
         : key(_key),
           existing_value(_existing_value),
+          existing_columns(_existing_columns),
           operand_list(_operand_list),
           logger(_logger) {}
 
     // The key associated with the merge operation.
     const Slice& key;
-    // The existing value of the current key, nullptr means that the
-    // value doesn't exist.
+    // The existing value of the current key in the case of plain key-values, or
+    // the value of the default column in the case of wide-column entities.
+    // nullptr means that the key does not exist.
     const Slice* existing_value;
+    // The existing columns of the current key in the case of wide-column
+    // entities, nullptr otherwise.
+    const WideColumns* existing_columns;
     // A list of operands to apply.
     const std::vector<Slice>& operand_list;
     // Logger could be used by client to log any errors that happen during

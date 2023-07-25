@@ -54,16 +54,24 @@ bool TtlMergeOperator::FullMergeV2(const MergeOperationInput& merge_in,
   bool good = true;
   MergeOperationOutput user_merge_out(merge_out->new_value,
                                       merge_out->existing_operand);
+
+  // TODO: support wide-column Merge
+  constexpr WideColumns* existing_columns_without_ts = nullptr;
+
   if (merge_in.existing_value) {
     Slice existing_value_without_ts(merge_in.existing_value->data(),
                                     merge_in.existing_value->size() - ts_len);
     good = user_merge_op_->FullMergeV2(
         MergeOperationInput(merge_in.key, &existing_value_without_ts,
-                            operands_without_ts, merge_in.logger),
+                            existing_columns_without_ts, operands_without_ts,
+                            merge_in.logger),
         &user_merge_out);
   } else {
+    constexpr Slice* existing_value_without_ts = nullptr;
+
     good = user_merge_op_->FullMergeV2(
-        MergeOperationInput(merge_in.key, nullptr, operands_without_ts,
+        MergeOperationInput(merge_in.key, existing_value_without_ts,
+                            existing_columns_without_ts, operands_without_ts,
                             merge_in.logger),
         &user_merge_out);
   }

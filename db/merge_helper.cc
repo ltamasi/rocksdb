@@ -76,10 +76,14 @@ Status MergeHelper::TimedFullMerge(
   }
 
   bool success = false;
+
+  constexpr WideColumns* columns = nullptr;
+  const MergeOperator::MergeOperationInput merge_in(key, value, columns,
+                                                    operands, logger);
+
   Slice tmp_result_operand(nullptr, 0);
-  const MergeOperator::MergeOperationInput merge_in(key, value, operands,
-                                                    logger);
   MergeOperator::MergeOperationOutput merge_out(*result, tmp_result_operand);
+
   {
     // Setup to time the merge
     StopWatchNano timer(clock, statistics != nullptr);
