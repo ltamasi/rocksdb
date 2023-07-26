@@ -53,6 +53,7 @@ bool TtlMergeOperator::FullMergeV2(const MergeOperationInput& merge_in,
   // Apply the user merge operator (store result in *new_value)
   bool good = true;
   MergeOperationOutput user_merge_out(merge_out->new_value,
+                                      merge_out->new_columns,
                                       merge_out->existing_operand);
 
   // TODO: support wide-column Merge

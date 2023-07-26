@@ -17,6 +17,7 @@ class UtilMergeOperatorTest : public testing::Test {
                           std::vector<std::string> operands,
                           std::string key = "") {
     std::string result;
+    std::vector<std::pair<std::string, std::string>> result_columns;
     Slice result_operand(nullptr, 0);
 
     Slice existing_value_slice(existing_value);
@@ -25,7 +26,8 @@ class UtilMergeOperatorTest : public testing::Test {
 
     const MergeOperator::MergeOperationInput merge_in(
         key, &existing_value_slice, existing_columns, operands_slice, nullptr);
-    MergeOperator::MergeOperationOutput merge_out(result, result_operand);
+    MergeOperator::MergeOperationOutput merge_out(result, result_columns,
+                                                  result_operand);
     merge_operator_->FullMergeV2(merge_in, &merge_out);
 
     if (result_operand.data()) {
@@ -37,6 +39,7 @@ class UtilMergeOperatorTest : public testing::Test {
   std::string FullMergeV2(std::vector<std::string> operands,
                           std::string key = "") {
     std::string result;
+    std::vector<std::pair<std::string, std::string>> result_columns;
     Slice result_operand(nullptr, 0);
 
     constexpr Slice* existing_value = nullptr;
@@ -45,7 +48,8 @@ class UtilMergeOperatorTest : public testing::Test {
 
     const MergeOperator::MergeOperationInput merge_in(
         key, existing_value, existing_columns, operands_slice, nullptr);
-    MergeOperator::MergeOperationOutput merge_out(result, result_operand);
+    MergeOperator::MergeOperationOutput merge_out(result, result_columns,
+                                                  result_operand);
     merge_operator_->FullMergeV2(merge_in, &merge_out);
 
     if (result_operand.data()) {
