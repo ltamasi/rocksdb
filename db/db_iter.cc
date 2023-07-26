@@ -555,9 +555,12 @@ bool DBIter::MergeValuesNewToOld() {
       // hit a put, merge the put value with operands and store the
       // final result in saved_value_. We are done!
       const Slice val = iter_.value();
-      if (!Merge(&val, ikey.user_key)) {
+      constexpr bool is_entity = false;
+
+      if (!Merge(&val, is_entity, ikey.user_key)) {
         return false;
       }
+
       // iter_ is positioned after put
       iter_.Next();
       if (!iter_.status().ok()) {
@@ -584,7 +587,10 @@ bool DBIter::MergeValuesNewToOld() {
         return false;
       }
       valid_ = true;
-      if (!Merge(&blob_value_, ikey.user_key)) {
+
+      constexpr bool is_entity = false;
+
+      if (!Merge(&blob_value_, is_entity, ikey.user_key)) {
         return false;
       }
 
@@ -598,7 +604,10 @@ bool DBIter::MergeValuesNewToOld() {
       }
       return true;
     } else if (kTypeWideColumnEntity == ikey.type) {
-      if (!MergeEntity(iter_.value(), ikey.user_key)) {
+      const Slice val = iter_.value();
+      constexpr bool is_entity = true;
+
+      if (!Merge(&val, is_entity, ikey.user_key)) {
         return false;
       }
 
@@ -628,9 +637,12 @@ bool DBIter::MergeValuesNewToOld() {
   // a deletion marker.
   // feed null as the existing value to the merge operator, such that
   // client can differentiate this scenario and do things accordingly.
-  if (!Merge(nullptr, saved_key_.GetUserKey())) {
+  constexpr bool is_entity = false;
+
+  if (!Merge(nullptr, is_entity, saved_key_.GetUserKey())) {
     return false;
   }
+
   assert(status_.ok());
   return true;
 }
@@ -979,9 +991,12 @@ bool DBIter::FindValueForCurrentKey() {
       if (last_not_merge_type == kTypeDeletion ||
           last_not_merge_type == kTypeSingleDeletion ||
           last_not_merge_type == kTypeDeletionWithTimestamp) {
-        if (!Merge(nullptr, saved_key_.GetUserKey())) {
+        constexpr bool is_entity = false;
+
+        if (!Merge(nullptr, is_entity, saved_key_.GetUserKey())) {
           return false;
         }
+
         return true;
       } else if (last_not_merge_type == kTypeBlobIndex) {
         if (expose_blob_index_) {
@@ -994,7 +1009,10 @@ bool DBIter::FindValueForCurrentKey() {
           return false;
         }
         valid_ = true;
-        if (!Merge(&blob_value_, saved_key_.GetUserKey())) {
+
+        constexpr bool is_entity = false;
+
+        if (!Merge(&blob_value_, is_entity, saved_key_.GetUserKey())) {
           return false;
         }
 
@@ -1002,14 +1020,19 @@ bool DBIter::FindValueForCurrentKey() {
 
         return true;
       } else if (last_not_merge_type == kTypeWideColumnEntity) {
-        if (!MergeEntity(pinned_value_, saved_key_.GetUserKey())) {
+        constexpr bool is_entity = true;
+
+        if (!Merge(&pinned_value_, is_entity, saved_key_.GetUserKey())) {
           return false;
         }
 
         return true;
       } else {
         assert(last_not_merge_type == kTypeValue);
-        if (!Merge(&pinned_value_, saved_key_.GetUserKey())) {
+
+        constexpr bool is_entity = false;
+
+        if (!Merge(&pinned_value_, is_entity, saved_key_.GetUserKey())) {
           return false;
         }
         return true;
@@ -1186,9 +1209,12 @@ bool DBIter::FindValueForCurrentKeyUsingSeek() {
 
     if (ikey.type == kTypeValue) {
       const Slice val = iter_.value();
-      if (!Merge(&val, saved_key_.GetUserKey())) {
+      constexpr bool is_entity = false;
+
+      if (!Merge(&val, is_entity, saved_key_.GetUserKey())) {
         return false;
       }
+
       return true;
     } else if (ikey.type == kTypeMerge) {
       merge_context_.PushOperand(
@@ -1205,7 +1231,10 @@ bool DBIter::FindValueForCurrentKeyUsingSeek() {
         return false;
       }
       valid_ = true;
-      if (!Merge(&blob_value_, saved_key_.GetUserKey())) {
+
+      constexpr bool is_entity = false;
+
+      if (!Merge(&blob_value_, is_entity, saved_key_.GetUserKey())) {
         return false;
       }
 
@@ -1213,7 +1242,10 @@ bool DBIter::FindValueForCurrentKeyUsingSeek() {
 
       return true;
     } else if (ikey.type == kTypeWideColumnEntity) {
-      if (!MergeEntity(iter_.value(), saved_key_.GetUserKey())) {
+      const Slice val = iter_.value();
+      constexpr bool is_entity = true;
+
+      if (!Merge(&val, is_entity, saved_key_.GetUserKey())) {
         return false;
       }
 
@@ -1227,7 +1259,9 @@ bool DBIter::FindValueForCurrentKeyUsingSeek() {
     }
   }
 
-  if (!Merge(nullptr, saved_key_.GetUserKey())) {
+  constexpr bool is_entity = false;
+
+  if (!Merge(nullptr, is_entity, saved_key_.GetUserKey())) {
     return false;
   }
 
@@ -1250,12 +1284,16 @@ bool DBIter::FindValueForCurrentKeyUsingSeek() {
   return true;
 }
 
-bool DBIter::Merge(const Slice* val, const Slice& user_key) {
+bool DBIter::Merge(const Slice* val, bool existing_is_entity,
+                   const Slice& user_key) {
+  bool result_is_entity = false;
+
   // `op_failure_scope` (an output parameter) is not provided (set to nullptr)
   // since a failure must be propagated regardless of its value.
   Status s = MergeHelper::TimedFullMerge(
-      merge_operator_, user_key, val, merge_context_.GetOperands(),
-      &saved_value_, logger_, statistics_, clock_, &pinned_value_,
+      merge_operator_, user_key, val, existing_is_entity,
+      merge_context_.GetOperands(), &saved_value_, &result_is_entity, logger_,
+      statistics_, clock_, &pinned_value_,
       /* update_num_ops_stats */ true,
       /* op_failure_scope */ nullptr);
   if (!s.ok()) {
@@ -1264,25 +1302,11 @@ bool DBIter::Merge(const Slice* val, const Slice& user_key) {
     return false;
   }
 
-  SetValueAndColumnsFromPlain(pinned_value_.data() ? pinned_value_
-                                                   : saved_value_);
-
-  valid_ = true;
-  return true;
-}
-
-bool DBIter::MergeEntity(const Slice& entity, const Slice& user_key) {
-  // `op_failure_scope` (an output parameter) is not provided (set to nullptr)
-  // since a failure must be propagated regardless of its value.
-  Status s = MergeHelper::TimedFullMergeWithEntity(
-      merge_operator_, user_key, entity, merge_context_.GetOperands(),
-      &saved_value_, logger_, statistics_, clock_,
-      /* update_num_ops_stats */ true,
-      /* op_failure_scope */ nullptr);
-  if (!s.ok()) {
-    valid_ = false;
-    status_ = s;
-    return false;
+  if (!result_is_entity) {
+    SetValueAndColumnsFromPlain(pinned_value_.data() ? pinned_value_
+                                                     : saved_value_);
+    valid_ = true;
+    return true;
   }
 
   if (!SetValueAndColumnsFromEntity(saved_value_)) {

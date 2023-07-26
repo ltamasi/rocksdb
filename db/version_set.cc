@@ -2508,15 +2508,20 @@ void Version::Get(const ReadOptions& read_options, const LookupKey& k,
     // merge_operands are in saver and we hit the beginning of the key history
     // do a final merge of nullptr and operands;
     if (value || columns) {
+      constexpr bool existing_is_entity = false;
       std::string result;
+      bool result_is_entity = false;
+
       // `op_failure_scope` (an output parameter) is not provided (set to
       // nullptr) since a failure must be propagated regardless of its value.
       *status = MergeHelper::TimedFullMerge(
-          merge_operator_, user_key, nullptr, merge_context->GetOperands(),
-          &result, info_log_, db_statistics_, clock_,
+          merge_operator_, user_key, nullptr, existing_is_entity,
+          merge_context->GetOperands(), &result, &result_is_entity, info_log_,
+          db_statistics_, clock_,
           /* result_operand */ nullptr, /* update_num_ops_stats */ true,
           /* op_failure_scope */ nullptr);
       if (status->ok()) {
+        // FIXME
         if (LIKELY(value != nullptr)) {
           *(value->GetSelf()) = std::move(result);
           value->PinSelf();
@@ -2759,15 +2764,19 @@ void Version::MultiGet(const ReadOptions& read_options, MultiGetRange* range,
       }
       // merge_operands are in saver and we hit the beginning of the key history
       // do a final merge of nullptr and operands;
+      constexpr bool existing_is_entity = false;
       std::string result;
+      bool result_is_entity = false;
 
       // `op_failure_scope` (an output parameter) is not provided (set to
       // nullptr) since a failure must be propagated regardless of its value.
       *status = MergeHelper::TimedFullMerge(
-          merge_operator_, user_key, nullptr, iter->merge_context.GetOperands(),
-          &result, info_log_, db_statistics_, clock_,
+          merge_operator_, user_key, nullptr, existing_is_entity,
+          iter->merge_context.GetOperands(), &result, &result_is_entity,
+          info_log_, db_statistics_, clock_,
           /* result_operand */ nullptr, /* update_num_ops_stats */ true,
           /* op_failure_scope */ nullptr);
+      // FIXME
       if (LIKELY(iter->value != nullptr)) {
         *iter->value->GetSelf() = std::move(result);
         iter->value->PinSelf();

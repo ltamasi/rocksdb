@@ -2495,6 +2495,7 @@ class MemTableInserter : public WriteBatch::Handler {
       if (cf_handle == nullptr) {
         cf_handle = db_->DefaultColumnFamily();
       }
+      // FIXME
       Status get_status = db_->Get(read_options, cf_handle, key, &get_value);
       if (!get_status.ok()) {
         // Failed to read a key we know exists. Store the delta in memtable.
@@ -2506,13 +2507,17 @@ class MemTableInserter : public WriteBatch::Handler {
         auto merge_operator = moptions->merge_operator;
         assert(merge_operator);
 
+        constexpr bool existing_is_entity = false;
         std::string new_value;
+        bool new_is_entity = false;
+
         // `op_failure_scope` (an output parameter) is not provided (set to
         // nullptr) since a failure must be propagated regardless of its value.
         Status merge_status = MergeHelper::TimedFullMerge(
-            merge_operator, key, &get_value_slice, {value}, &new_value,
-            moptions->info_log, moptions->statistics,
-            SystemClock::Default().get(), /* result_operand */ nullptr,
+            merge_operator, key, &get_value_slice, existing_is_entity, {value},
+            &new_value, &new_is_entity, moptions->info_log,
+            moptions->statistics, SystemClock::Default().get(),
+            /* result_operand */ nullptr,
             /* update_num_ops_stats */ false,
             /* op_failure_scope */ nullptr);
 
@@ -2521,6 +2526,7 @@ class MemTableInserter : public WriteBatch::Handler {
           // Store the delta in memtable
           perform_merge = false;
         } else {
+          // FIXME
           // 3) Add value to memtable
           assert(!concurrent_memtable_writes_);
           if (kv_prot_info != nullptr) {

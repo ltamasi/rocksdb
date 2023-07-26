@@ -1033,18 +1033,23 @@ static bool SaveValue(void* arg, const char* entry) {
           assert(s->do_merge);
 
           if (s->value || s->columns) {
+            constexpr bool existing_is_entity = false;
             std::string result;
+            bool result_is_entity = false;
+
             // `op_failure_scope` (an output parameter) is not provided (set to
             // nullptr) since a failure must be propagated regardless of its
             // value.
             *(s->status) = MergeHelper::TimedFullMerge(
-                merge_operator, s->key->user_key(), &v,
-                merge_context->GetOperands(), &result, s->logger, s->statistics,
-                s->clock, /* result_operand */ nullptr,
+                merge_operator, s->key->user_key(), &v, existing_is_entity,
+                merge_context->GetOperands(), &result, &result_is_entity,
+                s->logger, s->statistics, s->clock,
+                /* result_operand */ nullptr,
                 /* update_num_ops_stats */ true,
                 /* op_failure_scope */ nullptr);
 
             if (s->status->ok()) {
+              // FIXME
               if (s->value) {
                 *(s->value) = std::move(result);
               } else {
@@ -1096,33 +1101,24 @@ static bool SaveValue(void* arg, const char* entry) {
         } else if (*(s->merge_in_progress)) {
           assert(s->do_merge);
 
-          if (s->value) {
-            Slice value_of_default;
-            *(s->status) = WideColumnSerialization::GetValueOfDefaultColumn(
-                v, value_of_default);
-            if (s->status->ok()) {
-              // `op_failure_scope` (an output parameter) is not provided (set
-              // to nullptr) since a failure must be propagated regardless of
-              // its value.
-              *(s->status) = MergeHelper::TimedFullMerge(
-                  merge_operator, s->key->user_key(), &value_of_default,
-                  merge_context->GetOperands(), s->value, s->logger,
-                  s->statistics, s->clock, /* result_operand */ nullptr,
-                  /* update_num_ops_stats */ true,
-                  /* op_failure_scope */ nullptr);
-            }
-          } else if (s->columns) {
+          if (s->value || s->columns) {
+            constexpr bool existing_is_entity = true;
             std::string result;
+            bool result_is_entity = false;
+
             // `op_failure_scope` (an output parameter) is not provided (set to
             // nullptr) since a failure must be propagated regardless of its
             // value.
-            *(s->status) = MergeHelper::TimedFullMergeWithEntity(
-                merge_operator, s->key->user_key(), v,
-                merge_context->GetOperands(), &result, s->logger, s->statistics,
-                s->clock, /* update_num_ops_stats */ true,
+            *(s->status) = MergeHelper::TimedFullMerge(
+                merge_operator, s->key->user_key(), &v, existing_is_entity,
+                merge_context->GetOperands(), &result, &result_is_entity,
+                s->logger, s->statistics, s->clock,
+                /* result_operand */ nullptr,
+                /* update_num_ops_stats */ true,
                 /* op_failure_scope */ nullptr);
 
             if (s->status->ok()) {
+              // FIXME
               *(s->status) = s->columns->SetWideColumnValue(std::move(result));
             }
           }
@@ -1155,18 +1151,23 @@ static bool SaveValue(void* arg, const char* entry) {
       case kTypeRangeDeletion: {
         if (*(s->merge_in_progress)) {
           if (s->value || s->columns) {
+            constexpr bool existing_is_entity = false;
             std::string result;
+            bool result_is_entity = false;
+
             // `op_failure_scope` (an output parameter) is not provided (set to
             // nullptr) since a failure must be propagated regardless of its
             // value.
             *(s->status) = MergeHelper::TimedFullMerge(
-                merge_operator, s->key->user_key(), nullptr,
-                merge_context->GetOperands(), &result, s->logger, s->statistics,
-                s->clock, /* result_operand */ nullptr,
+                merge_operator, s->key->user_key(), nullptr, existing_is_entity,
+                merge_context->GetOperands(), &result, &result_is_entity,
+                s->logger, s->statistics, s->clock,
+                /* result_operand */ nullptr,
                 /* update_num_ops_stats */ true,
                 /* op_failure_scope */ nullptr);
 
             if (s->status->ok()) {
+              // FIXME
               if (s->value) {
                 *(s->value) = std::move(result);
               } else {
@@ -1206,18 +1207,23 @@ static bool SaveValue(void* arg, const char* entry) {
         if (s->do_merge && merge_operator->ShouldMerge(
                                merge_context->GetOperandsDirectionBackward())) {
           if (s->value || s->columns) {
+            constexpr bool existing_is_entity = false;
             std::string result;
+            bool result_is_entity = false;
+
             // `op_failure_scope` (an output parameter) is not provided (set to
             // nullptr) since a failure must be propagated regardless of its
             // value.
             *(s->status) = MergeHelper::TimedFullMerge(
-                merge_operator, s->key->user_key(), nullptr,
-                merge_context->GetOperands(), &result, s->logger, s->statistics,
-                s->clock, /* result_operand */ nullptr,
+                merge_operator, s->key->user_key(), nullptr, existing_is_entity,
+                merge_context->GetOperands(), &result, &result_is_entity,
+                s->logger, s->statistics, s->clock,
+                /* result_operand */ nullptr,
                 /* update_num_ops_stats */ true,
                 /* op_failure_scope */ nullptr);
 
             if (s->status->ok()) {
+              // FIXME
               if (s->value) {
                 *(s->value) = std::move(result);
               } else {

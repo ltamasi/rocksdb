@@ -19,6 +19,7 @@ bool MergeOperator::FullMergeV2(const MergeOperationInput& merge_in,
   for (auto& op : merge_in.operand_list) {
     operand_list_str.emplace_back(op.data(), op.size());
   }
+  // TODO
   return FullMerge(merge_in.key, merge_in.existing_value, operand_list_str,
                    &merge_out->new_value, merge_in.logger);
 }
@@ -56,6 +57,7 @@ bool AssociativeMergeOperator::FullMergeV2(
     MergeOperationOutput* merge_out) const {
   // Simply loop through the operands
   Slice temp_existing;
+  // TODO
   const Slice* existing_value = merge_in.existing_value;
   for (const auto& operand : merge_in.operand_list) {
     std::string temp_value;

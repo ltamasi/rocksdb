@@ -52,18 +52,14 @@ class MergeHelper {
   //   damage will be stored in `*op_failure_scope` when `op_failure_scope` is
   //   not nullptr
   static Status TimedFullMerge(const MergeOperator* merge_operator,
-                               const Slice& key, const Slice* value,
+                               const Slice& key, const Slice* existing,
+                               bool existing_is_entity,
                                const std::vector<Slice>& operands,
-                               std::string* result, Logger* logger,
-                               Statistics* statistics, SystemClock* clock,
-                               Slice* result_operand, bool update_num_ops_stats,
+                               std::string* result, bool* result_is_entity,
+                               Logger* logger, Statistics* statistics,
+                               SystemClock* clock, Slice* result_operand,
+                               bool update_num_ops_stats,
                                MergeOperator::OpFailureScope* op_failure_scope);
-
-  static Status TimedFullMergeWithEntity(
-      const MergeOperator* merge_operator, const Slice& key, Slice base_entity,
-      const std::vector<Slice>& operands, std::string* result, Logger* logger,
-      Statistics* statistics, SystemClock* clock, bool update_num_ops_stats,
-      MergeOperator::OpFailureScope* op_failure_scope);
 
   // During compaction, merge entries until we hit
   //     - a corrupted key
