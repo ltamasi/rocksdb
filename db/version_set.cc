@@ -39,6 +39,7 @@
 #include "db/version_builder.h"
 #include "db/version_edit.h"
 #include "db/version_edit_handler.h"
+#include "db/wide/wide_column_serialization.h"
 #include "file/file_util.h"
 #include "table/compaction_merging_iterator.h"
 
@@ -2521,13 +2522,27 @@ void Version::Get(const ReadOptions& read_options, const LookupKey& k,
           /* result_operand */ nullptr, /* update_num_ops_stats */ true,
           /* op_failure_scope */ nullptr);
       if (status->ok()) {
-        // FIXME
-        if (LIKELY(value != nullptr)) {
-          *(value->GetSelf()) = std::move(result);
-          value->PinSelf();
+        if (!result_is_entity) {
+          if (LIKELY(value != nullptr)) {
+            *(value->GetSelf()) = std::move(result);
+            value->PinSelf();
+          } else {
+            assert(columns != nullptr);
+            columns->SetPlainValue(std::move(result));
+          }
         } else {
-          assert(columns != nullptr);
-          columns->SetPlainValue(std::move(result));
+          if (LIKELY(value != nullptr)) {
+            Slice result_slice(result);
+            Slice value_of_default;
+            *status = WideColumnSerialization::GetValueOfDefaultColumn(
+                result_slice, value_of_default);
+            if (status->ok()) {
+              value->PinSelf(value_of_default);
+            }
+          } else {
+            assert(columns != nullptr);
+            *status = columns->SetWideColumnValue(std::move(result));
+          }
         }
       }
     }
@@ -2776,25 +2791,45 @@ void Version::MultiGet(const ReadOptions& read_options, MultiGetRange* range,
           info_log_, db_statistics_, clock_,
           /* result_operand */ nullptr, /* update_num_ops_stats */ true,
           /* op_failure_scope */ nullptr);
-      // FIXME
-      if (LIKELY(iter->value != nullptr)) {
-        *iter->value->GetSelf() = std::move(result);
-        iter->value->PinSelf();
-        range->AddValueSize(iter->value->size());
-      } else {
-        assert(iter->columns);
-        iter->columns->SetPlainValue(std::move(result));
-        range->AddValueSize(iter->columns->serialized_size());
-      }
+      if (status->ok()) {
+        if (!result_is_entity) {
+          if (LIKELY(iter->value != nullptr)) {
+            *iter->value->GetSelf() = std::move(result);
+            iter->value->PinSelf();
+            range->AddValueSize(iter->value->size());
+          } else {
+            assert(iter->columns);
+            iter->columns->SetPlainValue(std::move(result));
+            range->AddValueSize(iter->columns->serialized_size());
+          }
+        } else {
+          if (LIKELY(iter->value != nullptr)) {
+            Slice result_slice(result);
+            Slice value_of_default;
+            *status = WideColumnSerialization::GetValueOfDefaultColumn(
+                result_slice, value_of_default);
+            if (status->ok()) {
+              iter->value->PinSelf(value_of_default);
+              range->AddValueSize(iter->value->size());
+            }
+          } else {
+            assert(iter->columns != nullptr);
+            *status = iter->columns->SetWideColumnValue(std::move(result));
+            if (status->ok()) {
+              range->AddValueSize(iter->columns->serialized_size());
+            }
+          }
+        }
 
-      range->MarkKeyDone(iter);
-      if (range->GetValueSize() > read_options.value_size_soft_limit) {
-        s = Status::Aborted();
-        break;
+        range->MarkKeyDone(iter);
+        if (range->GetValueSize() > read_options.value_size_soft_limit) {
+          s = Status::Aborted();
+          break;
+        }
+      } else {
+        range->MarkKeyDone(iter);
+        *status = Status::NotFound();  // Use an empty error message for speed
       }
-    } else {
-      range->MarkKeyDone(iter);
-      *status = Status::NotFound();  // Use an empty error message for speed
     }
   }
 
