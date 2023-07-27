@@ -499,15 +499,30 @@ void GetContext::Merge(const Slice* value, bool existing_is_entity) {
     return;
   }
 
-  // FIXME
   if (LIKELY(pinnable_val_ != nullptr)) {
-    *(pinnable_val_->GetSelf()) = std::move(result);
-    pinnable_val_->PinSelf();
+    if (!result_is_entity) {
+      *(pinnable_val_->GetSelf()) = std::move(result);
+      pinnable_val_->PinSelf();
+    } else {
+      Slice result_slice(result);
+      Slice value_of_default;
+      if (!WideColumnSerialization::GetValueOfDefaultColumn(result_slice,
+                                                            value_of_default)
+               .ok()) {
+        state_ = kCorrupt;
+      } else {
+        pinnable_val_->PinSelf(value_of_default);
+      }
+    }
     return;
   }
 
   assert(columns_);
-  columns_->SetPlainValue(std::move(result));
+  if (!result_is_entity) {
+    columns_->SetPlainValue(std::move(result));
+  } else {
+    columns_->SetWideColumnValue(std::move(result));
+  }
 }
 
 bool GetContext::GetBlobValue(const Slice& user_key, const Slice& blob_index,
