@@ -1049,12 +1049,29 @@ static bool SaveValue(void* arg, const char* entry) {
                 /* op_failure_scope */ nullptr);
 
             if (s->status->ok()) {
-              // FIXME
-              if (s->value) {
-                *(s->value) = std::move(result);
+              if (!result_is_entity) {
+                if (s->value) {
+                  *(s->value) = std::move(result);
+                } else {
+                  assert(s->columns);
+                  s->columns->SetPlainValue(std::move(result));
+                }
               } else {
-                assert(s->columns);
-                s->columns->SetPlainValue(std::move(result));
+                if (s->value) {
+                  Slice result_slice(result);
+                  Slice value_of_default;
+                  *(s->status) =
+                      WideColumnSerialization::GetValueOfDefaultColumn(
+                          result_slice, value_of_default);
+                  if (s->status->ok()) {
+                    s->value->assign(value_of_default.data(),
+                                     value_of_default.size());
+                  }
+                } else {
+                  assert(s->columns);
+                  *(s->status) =
+                      s->columns->SetWideColumnValue(std::move(result));
+                }
               }
             }
           }
@@ -1118,8 +1135,30 @@ static bool SaveValue(void* arg, const char* entry) {
                 /* op_failure_scope */ nullptr);
 
             if (s->status->ok()) {
-              // FIXME
-              *(s->status) = s->columns->SetWideColumnValue(std::move(result));
+              if (!result_is_entity) {
+                if (s->value) {
+                  *(s->value) = std::move(result);
+                } else {
+                  assert(s->columns);
+                  s->columns->SetPlainValue(std::move(result));
+                }
+              } else {
+                if (s->value) {
+                  Slice result_slice(result);
+                  Slice value_of_default;
+                  *(s->status) =
+                      WideColumnSerialization::GetValueOfDefaultColumn(
+                          result_slice, value_of_default);
+                  if (s->status->ok()) {
+                    s->value->assign(value_of_default.data(),
+                                     value_of_default.size());
+                  }
+                } else {
+                  assert(s->columns);
+                  *(s->status) =
+                      s->columns->SetWideColumnValue(std::move(result));
+                }
+              }
             }
           }
         } else if (s->value) {
@@ -1167,12 +1206,29 @@ static bool SaveValue(void* arg, const char* entry) {
                 /* op_failure_scope */ nullptr);
 
             if (s->status->ok()) {
-              // FIXME
-              if (s->value) {
-                *(s->value) = std::move(result);
+              if (!result_is_entity) {
+                if (s->value) {
+                  *(s->value) = std::move(result);
+                } else {
+                  assert(s->columns);
+                  s->columns->SetPlainValue(std::move(result));
+                }
               } else {
-                assert(s->columns);
-                s->columns->SetPlainValue(std::move(result));
+                if (s->value) {
+                  Slice result_slice(result);
+                  Slice value_of_default;
+                  *(s->status) =
+                      WideColumnSerialization::GetValueOfDefaultColumn(
+                          result_slice, value_of_default);
+                  if (s->status->ok()) {
+                    s->value->assign(value_of_default.data(),
+                                     value_of_default.size());
+                  }
+                } else {
+                  assert(s->columns);
+                  *(s->status) =
+                      s->columns->SetWideColumnValue(std::move(result));
+                }
               }
             }
           } else {
@@ -1223,12 +1279,29 @@ static bool SaveValue(void* arg, const char* entry) {
                 /* op_failure_scope */ nullptr);
 
             if (s->status->ok()) {
-              // FIXME
-              if (s->value) {
-                *(s->value) = std::move(result);
+              if (!result_is_entity) {
+                if (s->value) {
+                  *(s->value) = std::move(result);
+                } else {
+                  assert(s->columns);
+                  s->columns->SetPlainValue(std::move(result));
+                }
               } else {
-                assert(s->columns);
-                s->columns->SetPlainValue(std::move(result));
+                if (s->value) {
+                  Slice result_slice(result);
+                  Slice value_of_default;
+                  *(s->status) =
+                      WideColumnSerialization::GetValueOfDefaultColumn(
+                          result_slice, value_of_default);
+                  if (s->status->ok()) {
+                    s->value->assign(value_of_default.data(),
+                                     value_of_default.size());
+                  }
+                } else {
+                  assert(s->columns);
+                  *(s->status) =
+                      s->columns->SetWideColumnValue(std::move(result));
+                }
               }
             }
           }
