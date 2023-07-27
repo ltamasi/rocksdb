@@ -520,8 +520,12 @@ void GetContext::Merge(const Slice* value, bool existing_is_entity) {
   assert(columns_);
   if (!result_is_entity) {
     columns_->SetPlainValue(std::move(result));
-  } else {
-    columns_->SetWideColumnValue(std::move(result));
+    return;
+  }
+
+  if (!columns_->SetWideColumnValue(std::move(result)).ok()) {
+    state_ = kCorrupt;
+    return;
   }
 }
 
