@@ -2826,10 +2826,10 @@ void Version::MultiGet(const ReadOptions& read_options, MultiGetRange* range,
           s = Status::Aborted();
           break;
         }
-      } else {
-        range->MarkKeyDone(iter);
-        *status = Status::NotFound();  // Use an empty error message for speed
       }
+    } else {
+      range->MarkKeyDone(iter);
+      *status = Status::NotFound();  // Use an empty error message for speed
     }
   }
 
