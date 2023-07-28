@@ -24,9 +24,36 @@ bool MergeOperator::FullMergeV2(const MergeOperationInput& merge_in,
                    &merge_out->new_value, merge_in.logger);
 }
 
-bool MergeOperator::FullMergeV3(const MergeOperationInputV3& /*merge_in*/,
-                                MergeOperationOutputV3* /*merge_out*/) const {
-  return false;
+bool MergeOperator::FullMergeV3(const MergeOperationInputV3& merge_in,
+                                MergeOperationOutputV3* merge_out) const {
+  if (merge_in.existing_value.index() ==
+      MergeOperationInputV3::kWideColumnExistingValue) {
+    // TODO
+    return false;
+  }
+
+  const Slice* const existing_value =
+      std::get_if<MergeOperationInputV3::kPlainExistingValue>(
+          &merge_in.existing_value);
+  const MergeOperationInput in_v2(merge_in.key, existing_value, nullptr,
+                                  merge_in.operand_list, merge_in.logger);
+
+  std::string new_value;
+  std::vector<std::pair<std::string, std::string>> new_columns;  // FIXME
+  Slice existing_operand;
+  MergeOperationOutput out_v2(new_value, new_columns, existing_operand);
+
+  const bool result = FullMergeV2(in_v2, &out_v2);
+
+  if (existing_operand.data()) {
+    merge_out->new_value = existing_operand;
+  } else {
+    merge_out->new_value = new_value;
+  }
+
+  merge_out->op_failure_scope = out_v2.op_failure_scope;
+
+  return result;
 }
 
 // The default implementation of PartialMergeMulti, which invokes
