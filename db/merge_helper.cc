@@ -70,7 +70,12 @@ Status MergeHelper::TimedFullMerge(
   if (operands.empty()) {
     assert(existing);
 
-    result->assign(existing->data(), existing->size());
+    if (result_operand) {
+      *result_operand = *existing;
+    } else {
+      result->assign(existing->data(), existing->size());
+    }
+
     *result_is_entity = existing_is_entity;
 
     return Status::OK();
@@ -119,12 +124,20 @@ Status MergeHelper::TimedFullMerge(
 
   if (merge_out.new_value.index() ==
       MergeOperator::MergeOperationOutputV3::kPlainNewValue) {
+    if (result_operand) {
+      *result_operand = Slice(nullptr, 0);
+    }
+
     *result = std::move(
         std::get<MergeOperator::MergeOperationOutputV3::kPlainNewValue>(
             merge_out.new_value));
     *result_is_entity = false;
   } else if (merge_out.new_value.index() ==
              MergeOperator::MergeOperationOutputV3::kWideColumnNewValue) {
+    if (result_operand) {
+      *result_operand = Slice(nullptr, 0);
+    }
+
     const auto& new_columns =
         std::get<MergeOperator::MergeOperationOutputV3::NewColumns>(
             merge_out.new_value);

@@ -25,6 +25,8 @@ bool MergeOperator::FullMergeV2(const MergeOperationInput& merge_in,
 
 bool MergeOperator::FullMergeV3(const MergeOperationInputV3& merge_in,
                                 MergeOperationOutputV3* merge_out) const {
+  assert(merge_out);
+
   if (merge_in.existing_value.index() ==
       MergeOperationInputV3::kWideColumnExistingValue) {
     // TODO
@@ -38,7 +40,7 @@ bool MergeOperator::FullMergeV3(const MergeOperationInputV3& merge_in,
                                   merge_in.operand_list, merge_in.logger);
 
   std::string new_value;
-  Slice existing_operand;
+  Slice existing_operand(nullptr, 0);
   MergeOperationOutput out_v2(new_value, existing_operand);
 
   const bool result = FullMergeV2(in_v2, &out_v2);
