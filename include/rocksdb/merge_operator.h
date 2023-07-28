@@ -99,11 +99,12 @@ class MergeOperator : public Customizable {
 
     // The key associated with the merge operation.
     const Slice& key;
-    // The existing value of the current key if it is a plain key-value;
-    // nullptr if the key does not exist or it is a wide-column entity.
+    // The existing value of the current key in the case of plain key-values, or
+    // the value of the default column in the case of wide-column entities.
+    // nullptr means that the key does not exist.
     const Slice* existing_value;
-    // The existing columns of the current key if it is a wide-column
-    // entity; nullptr if the key does not exist or it is a plain key-value.
+    // The existing columns of the current key in the case of wide-column
+    // entities, nullptr otherwise.
     const WideColumns* existing_columns;
     // A list of operands to apply.
     const std::vector<Slice>& operand_list;
@@ -120,20 +121,12 @@ class MergeOperator : public Customizable {
   };
 
   struct MergeOperationOutput {
-    explicit MergeOperationOutput(
-        std::string& _new_value,
-        std::vector<std::pair<std::string, std::string>>& _new_columns,
-        Slice& _existing_operand)
-        : new_value(_new_value),
-          new_columns(_new_columns),
-          existing_operand(_existing_operand) {}
+    explicit MergeOperationOutput(std::string& _new_value,
+                                  Slice& _existing_operand)
+        : new_value(_new_value), existing_operand(_existing_operand) {}
 
-    // The place for the client to put the merge result here assuming the result
-    // is a plain key-value.
+    // Client is responsible for filling the merge result here.
     std::string& new_value;
-    // The place for the client to put the merge result here assuming the result
-    // is a wide-column entity.
-    std::vector<std::pair<std::string, std::string>>& new_columns;
     // If the merge result is one of the existing operands (or existing_value),
     // client can set this field to the operand (or existing_value) instead of
     // using new_value.

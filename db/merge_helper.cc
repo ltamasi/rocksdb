@@ -110,10 +110,8 @@ Status MergeHelper::TimedFullMerge(
   const MergeOperator::MergeOperationInput merge_in(
       key, existing_value, existing_columns, operands, logger);
 
-  std::vector<std::pair<std::string, std::string>> result_columns;
   Slice tmp_result_operand(nullptr, 0);
-  MergeOperator::MergeOperationOutput merge_out(*result, result_columns,
-                                                tmp_result_operand);
+  MergeOperator::MergeOperationOutput merge_out(*result, tmp_result_operand);
 
   {
     // Setup to time the merge
