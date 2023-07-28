@@ -111,8 +111,9 @@ Status MergeHelper::TimedFullMerge(
       key, existing_value, existing_columns, operands, logger);
 
   Slice tmp_result_operand(nullptr, 0);
+  const MergeOperator::MergeOperationInput merge_in(key, value, operands,
+                                                    logger);
   MergeOperator::MergeOperationOutput merge_out(*result, tmp_result_operand);
-
   {
     // Setup to time the merge
     StopWatchNano timer(clock, statistics != nullptr);
