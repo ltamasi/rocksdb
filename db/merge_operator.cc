@@ -24,6 +24,11 @@ bool MergeOperator::FullMergeV2(const MergeOperationInput& merge_in,
                    &merge_out->new_value, merge_in.logger);
 }
 
+bool MergeOperator::FullMergeV3(const MergeOperationInputV3& /*merge_in*/,
+                                MergeOperationOutputV3* /*merge_out*/) const {
+  return false;
+}
+
 // The default implementation of PartialMergeMulti, which invokes
 // PartialMerge multiple times internally and merges two operands at
 // a time.

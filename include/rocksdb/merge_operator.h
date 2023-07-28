@@ -8,6 +8,8 @@
 #include <deque>
 #include <memory>
 #include <string>
+#include <utility>
+#include <variant>
 #include <vector>
 
 #include "rocksdb/customizable.h"
@@ -171,6 +173,42 @@ class MergeOperator : public Customizable {
   // full Merge with base value of 0 and operands [+1, +2, +7, +4].
   virtual bool FullMergeV2(const MergeOperationInput& merge_in,
                            MergeOperationOutput* merge_out) const;
+
+  struct MergeOperationInputV3 {
+    static constexpr size_t kNoExistingValue = 0;
+    static constexpr size_t kPlainExistingValue = 1;
+    static constexpr size_t kWideColumnExistingValue = 2;
+    using ExistingValue = std::variant<std::nullptr_t, Slice, WideColumns>;
+
+    using OperandList = std::vector<Slice>;
+
+    explicit MergeOperationInputV3(const Slice& _key,
+                                   ExistingValue&& _existing_value,
+                                   OperandList&& _operand_list, Logger* _logger)
+        : key(_key),
+          existing_value(std::move(_existing_value)),
+          operand_list(std::move(_operand_list)),
+          logger(_logger) {}
+
+    Slice key;
+    ExistingValue existing_value;
+    OperandList operand_list;
+    Logger* logger;
+  };
+
+  struct MergeOperationOutputV3 {
+    static constexpr size_t kPlainNewValue = 0;
+    static constexpr size_t kWideColumnNewValue = 1;
+    static constexpr size_t kExistingOperandNewValue = 2;
+    using NewColumns = std::vector<std::pair<std::string, std::string>>;
+    using NewValue = std::variant<std::string, NewColumns, Slice>;
+
+    NewValue new_value;
+    OpFailureScope op_failure_scope = OpFailureScope::kDefault;
+  };
+
+  virtual bool FullMergeV3(const MergeOperationInputV3& merge_in,
+                           MergeOperationOutputV3* merge_out) const;
 
   // This function performs merge(left_op, right_op)
   // when both the operands are themselves merge operation types
