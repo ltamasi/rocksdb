@@ -14,6 +14,7 @@
 
 #include "rocksdb/customizable.h"
 #include "rocksdb/slice.h"
+#include "rocksdb/wide_columns.h"
 
 namespace ROCKSDB_NAMESPACE {
 

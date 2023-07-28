@@ -105,14 +105,13 @@ Status MergeHelper::TimedFullMerge(
     }
 
     existing_columns = &columns;
+    (void)existing_columns;
   }
 
-  const MergeOperator::MergeOperationInput merge_in(
-      key, existing_value, existing_columns, operands, logger);
+  const MergeOperator::MergeOperationInput merge_in(key, existing_value,
+                                                    operands, logger);
 
   Slice tmp_result_operand(nullptr, 0);
-  const MergeOperator::MergeOperationInput merge_in(key, value, operands,
-                                                    logger);
   MergeOperator::MergeOperationOutput merge_out(*result, tmp_result_operand);
   {
     // Setup to time the merge
@@ -122,7 +121,7 @@ Status MergeHelper::TimedFullMerge(
     // Do the merge
     success = merge_operator->FullMergeV2(merge_in, &merge_out);
 
-    if (!result_columns.empty()) {  // FIXME
+    /*if (!result_columns.empty()) {  // FIXME
       WideColumns sorted_columns;
 
       sorted_columns.reserve(result_columns.size());
@@ -142,7 +141,8 @@ Status MergeHelper::TimedFullMerge(
       }
 
       *result_is_entity = true;
-    } else {
+    } else */
+    {
       *result_is_entity = false;
 
       if (tmp_result_operand.data()) {
