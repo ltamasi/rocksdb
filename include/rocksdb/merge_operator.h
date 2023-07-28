@@ -171,10 +171,11 @@ class MergeOperator : public Customizable {
 
     explicit MergeOperationInputV3(const Slice& _key,
                                    ExistingValue&& _existing_value,
-                                   OperandList&& _operand_list, Logger* _logger)
+                                   const OperandList& _operand_list,
+                                   Logger* _logger)
         : key(_key),
           existing_value(std::move(_existing_value)),
-          operand_list(std::move(_operand_list)),
+          operand_list(_operand_list),  // FIXME
           logger(_logger) {}
 
     Slice key;

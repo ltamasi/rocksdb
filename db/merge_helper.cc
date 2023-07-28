@@ -67,10 +67,6 @@ Status MergeHelper::TimedFullMerge(
   assert(result);
   assert(result_is_entity);
 
-  if (result_operand) {
-    *result_operand = Slice(nullptr, 0);
-  }
-
   if (operands.empty()) {
     assert(existing);
 
@@ -87,76 +83,81 @@ Status MergeHelper::TimedFullMerge(
 
   bool success = false;
 
-  const Slice* existing_value = nullptr;
-  const WideColumns* existing_columns = nullptr;
+  MergeOperator::MergeOperationInputV3::ExistingValue existing_value;
 
-  WideColumns columns;
+  if (existing) {
+    if (!existing_is_entity) {
+      existing_value = *existing;
+    } else {
+      existing_value = WideColumns();
 
-  if (!existing_is_entity) {
-    existing_value = existing;
-  } else {
-    assert(existing);
-
-    Slice existing_copy = *existing;
-    const Status s =
-        WideColumnSerialization::Deserialize(existing_copy, columns);
-    if (!s.ok()) {
-      // TODO
+      Slice existing_copy = *existing;
+      const Status s = WideColumnSerialization::Deserialize(
+          existing_copy, std::get<WideColumns>(existing_value));
+      if (!s.ok()) {
+        // TODO
+      }
     }
-
-    existing_columns = &columns;
-    (void)existing_columns;
   }
 
-  const MergeOperator::MergeOperationInput merge_in(key, existing_value,
-                                                    operands, logger);
+  const MergeOperator::MergeOperationInputV3 merge_in(
+      key, std::move(existing_value), operands, logger);
 
-  Slice tmp_result_operand(nullptr, 0);
-  MergeOperator::MergeOperationOutput merge_out(*result, tmp_result_operand);
+  MergeOperator::MergeOperationOutputV3 merge_out;
+
   {
     // Setup to time the merge
     StopWatchNano timer(clock, statistics != nullptr);
     PERF_TIMER_GUARD(merge_operator_time_nanos);
 
     // Do the merge
-    success = merge_operator->FullMergeV2(merge_in, &merge_out);
-
-    /*if (!result_columns.empty()) {  // FIXME
-      WideColumns sorted_columns;
-
-      sorted_columns.reserve(result_columns.size());
-      for (const auto& column : result_columns) {
-        sorted_columns.emplace_back(column.first, column.second);
-      }
-
-      std::sort(sorted_columns.begin(), sorted_columns.end(),
-                [](const WideColumn& lhs, const WideColumn& rhs) {
-                  return lhs.name().compare(rhs.name()) < 0;
-                });
-
-      const Status s =
-          WideColumnSerialization::Serialize(sorted_columns, *result);
-      if (!s.ok()) {
-        // TODO
-      }
-
-      *result_is_entity = true;
-    } else */
-    {
-      *result_is_entity = false;
-
-      if (tmp_result_operand.data()) {
-        // FullMergeV2 result is an existing operand
-        if (result_operand != nullptr) {
-          *result_operand = tmp_result_operand;
-        } else {
-          result->assign(tmp_result_operand.data(), tmp_result_operand.size());
-        }
-      }
-    }
+    success = merge_operator->FullMergeV3(merge_in, &merge_out);
 
     RecordTick(statistics, MERGE_OPERATION_TOTAL_TIME,
                statistics ? timer.ElapsedNanos() : 0);
+  }
+
+  if (merge_out.new_value.index() ==
+      MergeOperator::MergeOperationOutputV3::kPlainNewValue) {
+    *result = std::move(
+        std::get<MergeOperator::MergeOperationOutputV3::kPlainNewValue>(
+            merge_out.new_value));
+    *result_is_entity = false;
+  } else if (merge_out.new_value.index() ==
+             MergeOperator::MergeOperationOutputV3::kWideColumnNewValue) {
+    const auto& new_columns =
+        std::get<MergeOperator::MergeOperationOutputV3::NewColumns>(
+            merge_out.new_value);
+
+    WideColumns sorted_columns;
+
+    sorted_columns.reserve(new_columns.size());
+    for (const auto& column : new_columns) {
+      sorted_columns.emplace_back(column.first, column.second);
+    }
+
+    std::sort(sorted_columns.begin(), sorted_columns.end(),
+              [](const WideColumn& lhs, const WideColumn& rhs) {
+                return lhs.name().compare(rhs.name()) < 0;
+              });
+
+    const Status s =
+        WideColumnSerialization::Serialize(sorted_columns, *result);
+    if (!s.ok()) {
+      // TODO
+    }
+
+    *result_is_entity = true;
+  } else {
+    assert(merge_out.new_value.index() ==
+           MergeOperator::MergeOperationOutputV3::kExistingOperandNewValue);
+
+    const Slice& operand = std::get<Slice>(merge_out.new_value);
+    if (result_operand) {
+      *result_operand = operand;
+    } else {
+      result->assign(operand.data(), operand.size());
+    }
   }
 
   if (op_failure_scope != nullptr) {
