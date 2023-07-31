@@ -100,7 +100,11 @@ Status MergeHelper::TimedFullMerge(
       const Status s = WideColumnSerialization::Deserialize(
           existing_copy, std::get<WideColumns>(existing_value));
       if (!s.ok()) {
-        // TODO
+        if (op_failure_scope) {
+          *op_failure_scope = MergeOperator::OpFailureScope::kTryMerge;
+        }
+
+        return s;
       }
     }
   }
@@ -157,7 +161,11 @@ Status MergeHelper::TimedFullMerge(
     const Status s =
         WideColumnSerialization::Serialize(sorted_columns, *result);
     if (!s.ok()) {
-      // TODO
+      if (op_failure_scope) {
+        *op_failure_scope = MergeOperator::OpFailureScope::kTryMerge;
+      }
+
+      return s;
     }
 
     *result_is_entity = true;
