@@ -126,60 +126,71 @@ Status MergeHelper::TimedFullMerge(
                statistics ? timer.ElapsedNanos() : 0);
   }
 
-  if (merge_out.new_value.index() ==
-      MergeOperator::MergeOperationOutputV3::kPlainNewValue) {
-    if (result_operand) {
-      *result_operand = Slice(nullptr, 0);
+  class Visitor {
+   public:
+    Visitor(std::string* result, Slice* result_operand, bool* result_is_entity)
+        : result_(result),
+          result_operand_(result_operand),
+          result_is_entity_(result_is_entity) {
+      assert(result_);
+      assert(result_is_entity_);
     }
 
-    *result = std::move(
-        std::get<MergeOperator::MergeOperationOutputV3::kPlainNewValue>(
-            merge_out.new_value));
-    *result_is_entity = false;
-  } else if (merge_out.new_value.index() ==
-             MergeOperator::MergeOperationOutputV3::kWideColumnNewValue) {
-    if (result_operand) {
-      *result_operand = Slice(nullptr, 0);
-    }
+    Status operator()(const std::string& new_value) const {
+      *result_is_entity_ = false;
 
-    const auto& new_columns =
-        std::get<MergeOperator::MergeOperationOutputV3::NewColumns>(
-            merge_out.new_value);
-
-    WideColumns sorted_columns;
-
-    sorted_columns.reserve(new_columns.size());
-    for (const auto& column : new_columns) {
-      sorted_columns.emplace_back(column.first, column.second);
-    }
-
-    std::sort(sorted_columns.begin(), sorted_columns.end(),
-              [](const WideColumn& lhs, const WideColumn& rhs) {
-                return lhs.name().compare(rhs.name()) < 0;
-              });
-
-    const Status s =
-        WideColumnSerialization::Serialize(sorted_columns, *result);
-    if (!s.ok()) {
-      if (op_failure_scope) {
-        *op_failure_scope = MergeOperator::OpFailureScope::kTryMerge;
+      if (result_operand_) {
+        *result_operand_ = Slice(nullptr, 0);
       }
 
-      return s;
+      *result_ = std::move(new_value);
+
+      return Status::OK();
     }
 
-    *result_is_entity = true;
-  } else {
-    assert(merge_out.new_value.index() ==
-           MergeOperator::MergeOperationOutputV3::kExistingOperandNewValue);
+    Status operator()(const MergeOperator::MergeOperationOutputV3::NewColumns&
+                          new_columns) const {
+      *result_is_entity_ = true;
 
-    const Slice& operand = std::get<Slice>(merge_out.new_value);
-    if (result_operand) {
-      *result_operand = operand;
-    } else {
-      result->assign(operand.data(), operand.size());
+      if (result_operand_) {
+        *result_operand_ = Slice(nullptr, 0);
+      }
+
+      WideColumns sorted_columns;
+
+      sorted_columns.reserve(new_columns.size());
+      for (const auto& column : new_columns) {
+        sorted_columns.emplace_back(column.first, column.second);
+      }
+
+      std::sort(sorted_columns.begin(), sorted_columns.end(),
+                [](const WideColumn& lhs, const WideColumn& rhs) {
+                  return lhs.name().compare(rhs.name()) < 0;
+                });
+
+      return WideColumnSerialization::Serialize(sorted_columns, *result_);
     }
-  }
+
+    Status operator()(const Slice& operand) const {
+      *result_is_entity_ = false;
+
+      if (result_operand_) {
+        *result_operand_ = operand;
+      } else {
+        result_->assign(operand.data(), operand.size());
+      }
+
+      return Status::OK();
+    }
+
+   private:
+    std::string* result_;
+    Slice* result_operand_;
+    bool* result_is_entity_;
+  };
+
+  std::visit(Visitor(result, result_operand, result_is_entity),
+             merge_out.new_value);
 
   if (op_failure_scope != nullptr) {
     *op_failure_scope = merge_out.op_failure_scope;
