@@ -175,12 +175,12 @@ class MergeOperator : public Customizable {
                                    Logger* _logger)
         : key(_key),
           existing_value(std::move(_existing_value)),
-          operand_list(_operand_list),  // FIXME
+          operand_list(_operand_list),
           logger(_logger) {}
 
     Slice key;
     ExistingValue existing_value;
-    OperandList operand_list;
+    const OperandList& operand_list;
     Logger* logger;
   };
 
