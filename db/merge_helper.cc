@@ -86,8 +86,6 @@ Status MergeHelper::TimedFullMerge(
                       static_cast<uint64_t>(operands.size()));
   }
 
-  bool success = false;
-
   MergeOperator::MergeOperationInputV3::ExistingValue existing_value;
 
   if (existing) {
@@ -114,6 +112,8 @@ Status MergeHelper::TimedFullMerge(
 
   MergeOperator::MergeOperationOutputV3 merge_out;
 
+  bool success = false;
+
   {
     // Setup to time the merge
     StopWatchNano timer(clock, statistics != nullptr);
@@ -124,6 +124,19 @@ Status MergeHelper::TimedFullMerge(
 
     RecordTick(statistics, MERGE_OPERATION_TOTAL_TIME,
                statistics ? timer.ElapsedNanos() : 0);
+  }
+
+  if (op_failure_scope != nullptr) {
+    *op_failure_scope = merge_out.op_failure_scope;
+    // Apply default per merge_operator.h
+    if (*op_failure_scope == MergeOperator::OpFailureScope::kDefault) {
+      *op_failure_scope = MergeOperator::OpFailureScope::kTryMerge;
+    }
+  }
+
+  if (!success) {
+    RecordTick(statistics, NUMBER_MERGE_FAILURES);
+    return Status::Corruption(Status::SubCode::kMergeOperatorFailed);
   }
 
   class Visitor {
@@ -191,19 +204,6 @@ Status MergeHelper::TimedFullMerge(
 
   std::visit(Visitor(result, result_operand, result_is_entity),
              merge_out.new_value);
-
-  if (op_failure_scope != nullptr) {
-    *op_failure_scope = merge_out.op_failure_scope;
-    // Apply default per merge_operator.h
-    if (*op_failure_scope == MergeOperator::OpFailureScope::kDefault) {
-      *op_failure_scope = MergeOperator::OpFailureScope::kTryMerge;
-    }
-  }
-
-  if (!success) {
-    RecordTick(statistics, NUMBER_MERGE_FAILURES);
-    return Status::Corruption(Status::SubCode::kMergeOperatorFailed);
-  }
 
   return Status::OK();
 }
