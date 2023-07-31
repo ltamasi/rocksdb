@@ -29,8 +29,48 @@ bool MergeOperator::FullMergeV3(const MergeOperationInputV3& merge_in,
 
   if (merge_in.existing_value.index() ==
       MergeOperationInputV3::kWideColumnExistingValue) {
-    // TODO
-    return false;
+    const WideColumns& existing_columns =
+        std::get<WideColumns>(merge_in.existing_value);
+
+    const bool has_default_column =
+        !existing_columns.empty() &&
+        existing_columns.front().name() == kDefaultWideColumnName;
+
+    Slice value_of_default;
+    if (has_default_column) {
+      value_of_default = existing_columns.front().value();
+    }
+
+    const MergeOperationInput in_v2(merge_in.key, &value_of_default,
+                                    merge_in.operand_list, merge_in.logger);
+
+    std::string new_value;
+    Slice existing_operand(nullptr, 0);
+    MergeOperationOutput out_v2(new_value, existing_operand);
+
+    const bool result = FullMergeV2(in_v2, &out_v2);
+
+    merge_out->new_value = MergeOperationOutputV3::NewColumns();
+    auto& new_columns =
+        std::get<MergeOperationOutputV3::NewColumns>(merge_out->new_value);
+
+    if (existing_operand.data()) {
+      new_columns.emplace_back(kDefaultWideColumnName.ToString(),
+                               existing_operand.ToString());
+    } else {
+      new_columns.emplace_back(kDefaultWideColumnName.ToString(),
+                               std::move(new_value));
+    }
+
+    for (size_t i = has_default_column ? 1 : 0; i < existing_columns.size();
+         ++i) {
+      new_columns.emplace_back(existing_columns[i].name().ToString(),
+                               existing_columns[i].value().ToString());
+    }
+
+    merge_out->op_failure_scope = out_v2.op_failure_scope;
+
+    return result;
   }
 
   const Slice* const existing_value =
