@@ -531,9 +531,7 @@ void GetContext::MergeEntity(const Slice& entity) {
   const Status s = MergeHelper::TimedFullMergeWithEntity(
       merge_operator_, user_key_, entity, merge_context_->GetOperands(),
       &result, &result_is_entity, logger_, statistics_, clock_,
-      /* result_operand */ nullptr,
-      /* update_num_ops_stats */ true,
-      /* op_failure_scope */ nullptr);
+      /* update_num_ops_stats */ true, /* op_failure_scope */ nullptr);
   if (!s.ok()) {
     if (s.subcode() == Status::SubCode::kMergeOperatorFailed) {
       state_ = kMergeOperatorFailed;

@@ -1265,8 +1265,7 @@ bool DBIter::Merge(const Slice* val, const Slice& user_key) {
   // since a failure must be propagated regardless of its value.
   Status s = MergeHelper::TimedFullMerge(
       merge_operator_, user_key, val, merge_context_.GetOperands(),
-      &saved_value_, &result_is_entity, logger_, statistics_, clock_,
-      &pinned_value_,
+      &saved_value_, &result_is_entity, logger_, statistics_, clock_, nullptr,
       /* update_num_ops_stats */ true,
       /* op_failure_scope */ nullptr);
   if (!s.ok()) {
@@ -1276,8 +1275,9 @@ bool DBIter::Merge(const Slice* val, const Slice& user_key) {
   }
 
   if (!result_is_entity) {
-    SetValueAndColumnsFromPlain(pinned_value_.data() ? pinned_value_
-                                                     : saved_value_);
+    SetValueAndColumnsFromPlain(/*pinned_value_.data() ? pinned_value_
+                                                     :*/
+                                saved_value_);
     valid_ = true;
     return true;
   }
@@ -1298,7 +1298,6 @@ bool DBIter::MergeEntity(const Slice& entity, const Slice& user_key) {
   Status s = MergeHelper::TimedFullMergeWithEntity(
       merge_operator_, user_key, entity, merge_context_.GetOperands(),
       &saved_value_, &result_is_entity, logger_, statistics_, clock_,
-      &pinned_value_,
       /* update_num_ops_stats */ true,
       /* op_failure_scope */ nullptr);
   if (!s.ok()) {
@@ -1308,8 +1307,7 @@ bool DBIter::MergeEntity(const Slice& entity, const Slice& user_key) {
   }
 
   if (!result_is_entity) {
-    SetValueAndColumnsFromPlain(pinned_value_.data() ? pinned_value_
-                                                     : saved_value_);
+    SetValueAndColumnsFromPlain(saved_value_);
     valid_ = true;
     return true;
   }

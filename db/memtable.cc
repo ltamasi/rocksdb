@@ -1149,7 +1149,6 @@ static bool SaveValue(void* arg, const char* entry) {
                 merge_operator, s->key->user_key(), v,
                 merge_context->GetOperands(), &result, &result_is_entity,
                 s->logger, s->statistics, s->clock,
-                /* result_operand */ nullptr,
                 /* update_num_ops_stats */ true,
                 /* op_failure_scope */ nullptr);
 

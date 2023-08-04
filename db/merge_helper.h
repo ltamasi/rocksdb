@@ -64,7 +64,7 @@ class MergeHelper {
       const MergeOperator* merge_operator, const Slice& key, Slice existing,
       const std::vector<Slice>& operands, std::string* result,
       bool* result_is_entity, Logger* logger, Statistics* statistics,
-      SystemClock* clock, Slice* result_operand, bool update_num_ops_stats,
+      SystemClock* clock, bool update_num_ops_stats,
       MergeOperator::OpFailureScope* op_failure_scope);
 
   static Status PopulateMergeResult(

@@ -70,12 +70,7 @@ Status MergeHelper::TimedFullMerge(
   if (operands.empty()) {
     assert(existing);
 
-    if (result_operand) {
-      *result_operand = *existing;
-    } else {
-      result->assign(existing->data(), existing->size());
-    }
-
+    result->assign(existing->data(), existing->size());
     *result_is_entity = false;
 
     return Status::OK();
@@ -132,19 +127,14 @@ Status MergeHelper::TimedFullMergeWithEntity(
     const MergeOperator* merge_operator, const Slice& key, Slice existing,
     const std::vector<Slice>& operands, std::string* result,
     bool* result_is_entity, Logger* logger, Statistics* statistics,
-    SystemClock* clock, Slice* result_operand, bool update_num_ops_stats,
+    SystemClock* clock, bool update_num_ops_stats,
     MergeOperator::OpFailureScope* op_failure_scope) {
   assert(merge_operator);
   assert(result);
   assert(result_is_entity);
 
   if (operands.empty()) {
-    if (result_operand) {
-      *result_operand = existing;
-    } else {
-      result->assign(existing.data(), existing.size());
-    }
-
+    result->assign(existing.data(), existing.size());
     *result_is_entity = true;
 
     return Status::OK();
@@ -201,7 +191,7 @@ Status MergeHelper::TimedFullMergeWithEntity(
   }
 
   return PopulateMergeResult(std::move(merge_out.new_value), result,
-                             result_operand, result_is_entity);
+                             /* result_operand */ nullptr, result_is_entity);
 }
 
 Status MergeHelper::PopulateMergeResult(
@@ -460,7 +450,7 @@ Status MergeHelper::MergeUntil(InternalIterator* iter,
         s = TimedFullMergeWithEntity(
             user_merge_operator_, ikey.user_key, iter->value(),
             merge_context_.GetOperands(), &merge_result, &result_is_entity,
-            logger_, stats_, clock_, /* result_operand */ nullptr,
+            logger_, stats_, clock_,
             /* update_num_ops_stats */ false, &op_failure_scope);
       } else {
         s = TimedFullMerge(user_merge_operator_, ikey.user_key, nullptr,
