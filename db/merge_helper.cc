@@ -58,10 +58,10 @@ MergeHelper::MergeHelper(Env* env, const Comparator* user_comparator,
 
 Status MergeHelper::TimedFullMerge(
     const MergeOperator* merge_operator, const Slice& key,
-    const Slice* existing, bool existing_is_entity,
-    const std::vector<Slice>& operands, std::string* result,
-    bool* result_is_entity, Logger* logger, Statistics* statistics,
-    SystemClock* clock, Slice* result_operand, bool update_num_ops_stats,
+    const Slice* existing, const std::vector<Slice>& operands,
+    std::string* result, bool* result_is_entity, Logger* logger,
+    Statistics* statistics, SystemClock* clock, Slice* result_operand,
+    bool update_num_ops_stats,
     MergeOperator::OpFailureScope* op_failure_scope) {
   assert(merge_operator);
   assert(result);
@@ -76,7 +76,7 @@ Status MergeHelper::TimedFullMerge(
       result->assign(existing->data(), existing->size());
     }
 
-    *result_is_entity = existing_is_entity;
+    *result_is_entity = false;
 
     return Status::OK();
   }
@@ -89,22 +89,7 @@ Status MergeHelper::TimedFullMerge(
   MergeOperator::MergeOperationInputV3::ExistingValue existing_value;
 
   if (existing) {
-    if (!existing_is_entity) {
-      existing_value = *existing;
-    } else {
-      existing_value = WideColumns();
-
-      Slice existing_copy = *existing;
-      const Status s = WideColumnSerialization::Deserialize(
-          existing_copy, std::get<WideColumns>(existing_value));
-      if (!s.ok()) {
-        if (op_failure_scope) {
-          *op_failure_scope = MergeOperator::OpFailureScope::kTryMerge;
-        }
-
-        return s;
-      }
-    }
+    existing_value = *existing;
   }
 
   const MergeOperator::MergeOperationInputV3 merge_in(
@@ -139,6 +124,89 @@ Status MergeHelper::TimedFullMerge(
     return Status::Corruption(Status::SubCode::kMergeOperatorFailed);
   }
 
+  return PopulateMergeResult(std::move(merge_out.new_value), result,
+                             result_operand, result_is_entity);
+}
+
+Status MergeHelper::TimedFullMergeWithEntity(
+    const MergeOperator* merge_operator, const Slice& key, Slice existing,
+    const std::vector<Slice>& operands, std::string* result,
+    bool* result_is_entity, Logger* logger, Statistics* statistics,
+    SystemClock* clock, Slice* result_operand, bool update_num_ops_stats,
+    MergeOperator::OpFailureScope* op_failure_scope) {
+  assert(merge_operator);
+  assert(result);
+  assert(result_is_entity);
+
+  if (operands.empty()) {
+    if (result_operand) {
+      *result_operand = existing;
+    } else {
+      result->assign(existing.data(), existing.size());
+    }
+
+    *result_is_entity = true;
+
+    return Status::OK();
+  }
+
+  if (update_num_ops_stats) {
+    RecordInHistogram(statistics, READ_NUM_MERGE_OPERANDS,
+                      static_cast<uint64_t>(operands.size()));
+  }
+
+  MergeOperator::MergeOperationInputV3::ExistingValue existing_value(
+      WideColumns{});
+
+  const Status s = WideColumnSerialization::Deserialize(
+      existing, std::get<WideColumns>(existing_value));
+  if (!s.ok()) {
+    if (op_failure_scope) {
+      *op_failure_scope = MergeOperator::OpFailureScope::kTryMerge;
+    }
+
+    return s;
+  }
+
+  const MergeOperator::MergeOperationInputV3 merge_in(
+      key, std::move(existing_value), operands, logger);
+
+  MergeOperator::MergeOperationOutputV3 merge_out;
+
+  bool success = false;
+
+  {
+    // Setup to time the merge
+    StopWatchNano timer(clock, statistics != nullptr);
+    PERF_TIMER_GUARD(merge_operator_time_nanos);
+
+    // Do the merge
+    success = merge_operator->FullMergeV3(merge_in, &merge_out);
+
+    RecordTick(statistics, MERGE_OPERATION_TOTAL_TIME,
+               statistics ? timer.ElapsedNanos() : 0);
+  }
+
+  if (op_failure_scope != nullptr) {
+    *op_failure_scope = merge_out.op_failure_scope;
+    // Apply default per merge_operator.h
+    if (*op_failure_scope == MergeOperator::OpFailureScope::kDefault) {
+      *op_failure_scope = MergeOperator::OpFailureScope::kTryMerge;
+    }
+  }
+
+  if (!success) {
+    RecordTick(statistics, NUMBER_MERGE_FAILURES);
+    return Status::Corruption(Status::SubCode::kMergeOperatorFailed);
+  }
+
+  return PopulateMergeResult(std::move(merge_out.new_value), result,
+                             result_operand, result_is_entity);
+}
+
+Status MergeHelper::PopulateMergeResult(
+    MergeOperator::MergeOperationOutputV3::NewValue&& new_value,
+    std::string* result, Slice* result_operand, bool* result_is_entity) {
   class Visitor {
    public:
     Visitor(std::string* result, Slice* result_operand, bool* result_is_entity)
@@ -149,7 +217,7 @@ Status MergeHelper::TimedFullMerge(
       assert(result_is_entity_);
     }
 
-    Status operator()(const std::string& new_value) const {
+    Status operator()(std::string&& new_value) const {
       *result_is_entity_ = false;
 
       if (result_operand_) {
@@ -202,8 +270,7 @@ Status MergeHelper::TimedFullMerge(
     bool* result_is_entity_;
   };
 
-  std::visit(Visitor(result, result_operand, result_is_entity),
-             merge_out.new_value);
+  std::visit(Visitor(result, result_operand, result_is_entity), new_value);
 
   return Status::OK();
 }
@@ -342,23 +409,17 @@ Status MergeHelper::MergeUntil(InternalIterator* iter,
       if (range_del_agg &&
           range_del_agg->ShouldDelete(
               ikey, RangeDelPositioningMode::kForwardTraversal)) {
-        constexpr bool existing_is_entity = false;
-
         s = TimedFullMerge(user_merge_operator_, ikey.user_key, nullptr,
-                           existing_is_entity, merge_context_.GetOperands(),
-                           &merge_result, &result_is_entity, logger_, stats_,
-                           clock_,
+                           merge_context_.GetOperands(), &merge_result,
+                           &result_is_entity, logger_, stats_, clock_,
                            /* result_operand */ nullptr,
                            /* update_num_ops_stats */ false, &op_failure_scope);
       } else if (ikey.type == kTypeValue) {
-        constexpr bool existing_is_entity = false;
-
         const Slice val = iter->value();
 
         s = TimedFullMerge(user_merge_operator_, ikey.user_key, &val,
-                           existing_is_entity, merge_context_.GetOperands(),
-                           &merge_result, &result_is_entity, logger_, stats_,
-                           clock_,
+                           merge_context_.GetOperands(), &merge_result,
+                           &result_is_entity, logger_, stats_, clock_,
                            /* result_operand */ nullptr,
                            /* update_num_ops_stats */ false, &op_failure_scope);
       } else if (ikey.type == kTypeBlobIndex) {
@@ -390,31 +451,21 @@ Status MergeHelper::MergeUntil(InternalIterator* iter,
           c_iter_stats->total_blob_bytes_read += bytes_read;
         }
 
-        constexpr bool existing_is_entity = false;
-
         s = TimedFullMerge(user_merge_operator_, ikey.user_key, &blob_value,
-                           existing_is_entity, merge_context_.GetOperands(),
-                           &merge_result, &result_is_entity, logger_, stats_,
-                           clock_,
+                           merge_context_.GetOperands(), &merge_result,
+                           &result_is_entity, logger_, stats_, clock_,
                            /* result_operand */ nullptr,
                            /* update_num_ops_stats */ false, &op_failure_scope);
       } else if (ikey.type == kTypeWideColumnEntity) {
-        constexpr bool existing_is_entity = true;
-
-        const Slice val = iter->value();
-
-        s = TimedFullMerge(user_merge_operator_, ikey.user_key, &val,
-                           existing_is_entity, merge_context_.GetOperands(),
-                           &merge_result, &result_is_entity, logger_, stats_,
-                           clock_, /* result_operand */ nullptr,
-                           /* update_num_ops_stats */ false, &op_failure_scope);
+        s = TimedFullMergeWithEntity(
+            user_merge_operator_, ikey.user_key, iter->value(),
+            merge_context_.GetOperands(), &merge_result, &result_is_entity,
+            logger_, stats_, clock_, /* result_operand */ nullptr,
+            /* update_num_ops_stats */ false, &op_failure_scope);
       } else {
-        constexpr bool existing_is_entity = false;
-
         s = TimedFullMerge(user_merge_operator_, ikey.user_key, nullptr,
-                           existing_is_entity, merge_context_.GetOperands(),
-                           &merge_result, &result_is_entity, logger_, stats_,
-                           clock_,
+                           merge_context_.GetOperands(), &merge_result,
+                           &result_is_entity, logger_, stats_, clock_,
                            /* result_operand */ nullptr,
                            /* update_num_ops_stats */ false, &op_failure_scope);
       }
@@ -552,15 +603,13 @@ Status MergeHelper::MergeUntil(InternalIterator* iter,
     assert(merge_context_.GetNumOperands() >= 1);
     assert(merge_context_.GetNumOperands() == keys_.size());
 
-    constexpr bool existing_is_entity = false;
     std::string merge_result;
     bool result_is_entity = false;
     MergeOperator::OpFailureScope op_failure_scope;
 
     s = TimedFullMerge(user_merge_operator_, orig_ikey.user_key, nullptr,
-                       existing_is_entity, merge_context_.GetOperands(),
-                       &merge_result, &result_is_entity, logger_, stats_,
-                       clock_,
+                       merge_context_.GetOperands(), &merge_result,
+                       &result_is_entity, logger_, stats_, clock_,
                        /* result_operand */ nullptr,
                        /* update_num_ops_stats */ false, &op_failure_scope);
     if (s.ok()) {

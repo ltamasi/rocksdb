@@ -53,13 +53,23 @@ class MergeHelper {
   //   not nullptr
   static Status TimedFullMerge(const MergeOperator* merge_operator,
                                const Slice& key, const Slice* existing,
-                               bool existing_is_entity,
                                const std::vector<Slice>& operands,
                                std::string* result, bool* result_is_entity,
                                Logger* logger, Statistics* statistics,
                                SystemClock* clock, Slice* result_operand,
                                bool update_num_ops_stats,
                                MergeOperator::OpFailureScope* op_failure_scope);
+
+  static Status TimedFullMergeWithEntity(
+      const MergeOperator* merge_operator, const Slice& key, Slice existing,
+      const std::vector<Slice>& operands, std::string* result,
+      bool* result_is_entity, Logger* logger, Statistics* statistics,
+      SystemClock* clock, Slice* result_operand, bool update_num_ops_stats,
+      MergeOperator::OpFailureScope* op_failure_scope);
+
+  static Status PopulateMergeResult(
+      MergeOperator::MergeOperationOutputV3::NewValue&& new_value,
+      std::string* result, Slice* result_operand, bool* result_is_entity);
 
   // During compaction, merge entries until we hit
   //     - a corrupted key

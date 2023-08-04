@@ -657,7 +657,6 @@ Status WriteBatchWithIndexInternal::MergeKey(const Slice& key,
       return Status::InvalidArgument(
           "Merge_operator must be set for column_family");
     } else if (db_ != nullptr) {
-      constexpr bool existing_is_entity = false;
       bool result_is_entity = false;
 
       const ImmutableDBOptions& immutable_db_options =
@@ -670,13 +669,12 @@ Status WriteBatchWithIndexInternal::MergeKey(const Slice& key,
       // `op_failure_scope` (an output parameter) is not provided (set to
       // nullptr) since a failure must be propagated regardless of its value.
       return MergeHelper::TimedFullMerge(
-          merge_operator, key, value, existing_is_entity, context.GetOperands(),
-          result, &result_is_entity, logger, statistics, clock,
+          merge_operator, key, value, context.GetOperands(), result,
+          &result_is_entity, logger, statistics, clock,
           /* result_operand */ nullptr,
           /* update_num_ops_stats */ false,
           /* op_failure_scope */ nullptr);
     } else if (db_options_ != nullptr) {
-      constexpr bool existing_is_entity = false;
       bool result_is_entity = false;
 
       Statistics* statistics = db_options_->statistics.get();
@@ -686,22 +684,20 @@ Status WriteBatchWithIndexInternal::MergeKey(const Slice& key,
       // `op_failure_scope` (an output parameter) is not provided (set to
       // nullptr) since a failure must be propagated regardless of its value.
       return MergeHelper::TimedFullMerge(
-          merge_operator, key, value, existing_is_entity, context.GetOperands(),
-          result, &result_is_entity, logger, statistics, clock,
+          merge_operator, key, value, context.GetOperands(), result,
+          &result_is_entity, logger, statistics, clock,
           /* result_operand */ nullptr,
           /* update_num_ops_stats */ false,
           /* op_failure_scope */ nullptr);
     } else {
-      constexpr bool existing_is_entity = false;
       bool result_is_entity = false;
 
       const auto cf_opts = cfh->cfd()->ioptions();
       // `op_failure_scope` (an output parameter) is not provided (set to
       // nullptr) since a failure must be propagated regardless of its value.
       return MergeHelper::TimedFullMerge(
-          merge_operator, key, value, existing_is_entity, context.GetOperands(),
-          result, &result_is_entity, cf_opts->logger, cf_opts->stats,
-          cf_opts->clock,
+          merge_operator, key, value, context.GetOperands(), result,
+          &result_is_entity, cf_opts->logger, cf_opts->stats, cf_opts->clock,
           /* result_operand */ nullptr, /* update_num_ops_stats */ false,
           /* op_failure_scope */ nullptr);
     }

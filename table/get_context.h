@@ -191,7 +191,9 @@ class GetContext {
   void push_operand(const Slice& value, Cleanable* value_pinner);
 
  private:
-  void Merge(const Slice* value, bool existing_is_entity);
+  void Merge(const Slice* value);
+  void MergeEntity(const Slice& entity);
+
   bool GetBlobValue(const Slice& user_key, const Slice& blob_index,
                     PinnableSlice* blob_value);
 

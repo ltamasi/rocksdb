@@ -1054,7 +1054,6 @@ static bool SaveValue(void* arg, const char* entry) {
           assert(s->do_merge);
 
           if (s->value || s->columns) {
-            constexpr bool existing_is_entity = false;
             std::string result;
             bool result_is_entity = false;
 
@@ -1062,7 +1061,7 @@ static bool SaveValue(void* arg, const char* entry) {
             // nullptr) since a failure must be propagated regardless of its
             // value.
             *(s->status) = MergeHelper::TimedFullMerge(
-                merge_operator, s->key->user_key(), &v, existing_is_entity,
+                merge_operator, s->key->user_key(), &v,
                 merge_context->GetOperands(), &result, &result_is_entity,
                 s->logger, s->statistics, s->clock,
                 /* result_operand */ nullptr,
@@ -1140,15 +1139,14 @@ static bool SaveValue(void* arg, const char* entry) {
           assert(s->do_merge);
 
           if (s->value || s->columns) {
-            constexpr bool existing_is_entity = true;
             std::string result;
             bool result_is_entity = false;
 
             // `op_failure_scope` (an output parameter) is not provided (set to
             // nullptr) since a failure must be propagated regardless of its
             // value.
-            *(s->status) = MergeHelper::TimedFullMerge(
-                merge_operator, s->key->user_key(), &v, existing_is_entity,
+            *(s->status) = MergeHelper::TimedFullMergeWithEntity(
+                merge_operator, s->key->user_key(), v,
                 merge_context->GetOperands(), &result, &result_is_entity,
                 s->logger, s->statistics, s->clock,
                 /* result_operand */ nullptr,
@@ -1211,7 +1209,6 @@ static bool SaveValue(void* arg, const char* entry) {
       case kTypeRangeDeletion: {
         if (*(s->merge_in_progress)) {
           if (s->value || s->columns) {
-            constexpr bool existing_is_entity = false;
             std::string result;
             bool result_is_entity = false;
 
@@ -1219,7 +1216,7 @@ static bool SaveValue(void* arg, const char* entry) {
             // nullptr) since a failure must be propagated regardless of its
             // value.
             *(s->status) = MergeHelper::TimedFullMerge(
-                merge_operator, s->key->user_key(), nullptr, existing_is_entity,
+                merge_operator, s->key->user_key(), nullptr,
                 merge_context->GetOperands(), &result, &result_is_entity,
                 s->logger, s->statistics, s->clock,
                 /* result_operand */ nullptr,
@@ -1284,7 +1281,6 @@ static bool SaveValue(void* arg, const char* entry) {
         if (s->do_merge && merge_operator->ShouldMerge(
                                merge_context->GetOperandsDirectionBackward())) {
           if (s->value || s->columns) {
-            constexpr bool existing_is_entity = false;
             std::string result;
             bool result_is_entity = false;
 
@@ -1292,7 +1288,7 @@ static bool SaveValue(void* arg, const char* entry) {
             // nullptr) since a failure must be propagated regardless of its
             // value.
             *(s->status) = MergeHelper::TimedFullMerge(
-                merge_operator, s->key->user_key(), nullptr, existing_is_entity,
+                merge_operator, s->key->user_key(), nullptr,
                 merge_context->GetOperands(), &result, &result_is_entity,
                 s->logger, s->statistics, s->clock,
                 /* result_operand */ nullptr,

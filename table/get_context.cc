@@ -374,9 +374,7 @@ bool GetContext::SaveValue(const ParsedInternalKey& parsed_key,
             Slice blob_value(pin_val);
             state_ = kFound;
             if (do_merge_) {
-              constexpr bool existing_is_entity = false;
-
-              Merge(&blob_value, existing_is_entity);
+              Merge(&blob_value);
             } else {
               // It means this function is called as part of DB GetMergeOperands
               // API and the current value should be part of
@@ -387,9 +385,7 @@ bool GetContext::SaveValue(const ParsedInternalKey& parsed_key,
             state_ = kFound;
 
             if (do_merge_) {
-              constexpr bool existing_is_entity = true;
-
-              Merge(&value, existing_is_entity);
+              MergeEntity(value);
             } else {
               // It means this function is called as part of DB GetMergeOperands
               // API and the current value should be part of
@@ -411,9 +407,7 @@ bool GetContext::SaveValue(const ParsedInternalKey& parsed_key,
 
             state_ = kFound;
             if (do_merge_) {
-              constexpr bool existing_is_entity = false;
-
-              Merge(&value, existing_is_entity);
+              Merge(&value);
             } else {
               // It means this function is called as part of DB GetMergeOperands
               // API and the current value should be part of
@@ -436,9 +430,7 @@ bool GetContext::SaveValue(const ParsedInternalKey& parsed_key,
         } else if (kMerge == state_) {
           state_ = kFound;
           if (do_merge_) {
-            constexpr bool existing_is_entity = false;
-
-            Merge(nullptr, existing_is_entity);
+            Merge(nullptr);
           }
           // If do_merge_ = false then the current value shouldn't be part of
           // merge_context_->operand_list
@@ -457,9 +449,7 @@ bool GetContext::SaveValue(const ParsedInternalKey& parsed_key,
                 merge_context_->GetOperandsDirectionBackward())) {
           state_ = kFound;
 
-          constexpr bool existing_is_entity = false;
-
-          Merge(nullptr, existing_is_entity);
+          Merge(nullptr);
 
           return false;
         }
@@ -475,7 +465,7 @@ bool GetContext::SaveValue(const ParsedInternalKey& parsed_key,
   return false;
 }
 
-void GetContext::Merge(const Slice* value, bool existing_is_entity) {
+void GetContext::Merge(const Slice* value) {
   assert(do_merge_);
   assert(!pinnable_val_ || !columns_);
 
@@ -485,9 +475,63 @@ void GetContext::Merge(const Slice* value, bool existing_is_entity) {
   // `op_failure_scope` (an output parameter) is not provided (set to nullptr)
   // since a failure must be propagated regardless of its value.
   const Status s = MergeHelper::TimedFullMerge(
-      merge_operator_, user_key_, value, existing_is_entity,
-      merge_context_->GetOperands(), &result, &result_is_entity, logger_,
-      statistics_, clock_, /* result_operand */ nullptr,
+      merge_operator_, user_key_, value, merge_context_->GetOperands(), &result,
+      &result_is_entity, logger_, statistics_, clock_,
+      /* result_operand */ nullptr,
+      /* update_num_ops_stats */ true,
+      /* op_failure_scope */ nullptr);
+  if (!s.ok()) {
+    if (s.subcode() == Status::SubCode::kMergeOperatorFailed) {
+      state_ = kMergeOperatorFailed;
+    } else {
+      state_ = kCorrupt;
+    }
+    return;
+  }
+
+  if (LIKELY(pinnable_val_ != nullptr)) {
+    if (!result_is_entity) {
+      *(pinnable_val_->GetSelf()) = std::move(result);
+      pinnable_val_->PinSelf();
+    } else {
+      Slice result_slice(result);
+      Slice value_of_default;
+      if (!WideColumnSerialization::GetValueOfDefaultColumn(result_slice,
+                                                            value_of_default)
+               .ok()) {
+        state_ = kCorrupt;
+      } else {
+        pinnable_val_->PinSelf(value_of_default);
+      }
+    }
+    return;
+  }
+
+  assert(columns_);
+  if (!result_is_entity) {
+    columns_->SetPlainValue(std::move(result));
+    return;
+  }
+
+  if (!columns_->SetWideColumnValue(std::move(result)).ok()) {
+    state_ = kCorrupt;
+    return;
+  }
+}
+
+void GetContext::MergeEntity(const Slice& entity) {
+  assert(do_merge_);
+  assert(!pinnable_val_ || !columns_);
+
+  std::string result;
+  bool result_is_entity = false;
+
+  // `op_failure_scope` (an output parameter) is not provided (set to nullptr)
+  // since a failure must be propagated regardless of its value.
+  const Status s = MergeHelper::TimedFullMergeWithEntity(
+      merge_operator_, user_key_, entity, merge_context_->GetOperands(),
+      &result, &result_is_entity, logger_, statistics_, clock_,
+      /* result_operand */ nullptr,
       /* update_num_ops_stats */ true,
       /* op_failure_scope */ nullptr);
   if (!s.ok()) {
